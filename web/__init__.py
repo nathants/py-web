@@ -1,28 +1,26 @@
 from __future__ import absolute_import, print_function
-import logging
-import s.thread
-import mock
-import functools
-import traceback
-import json
-import types
 import contextlib
 import datetime
-import tornado.web
-import tornado.httputil
+import functools
+import json
+import logging
+import mock
+import six
+import time
 import tornado.httpclient
-import s.func
-import s.async
-import s.proc
+import tornado.httputil
+import tornado.web
+import traceback
+import types
+
 import s.data
 import s.exceptions
-import s.log
-import s.schema
+import s.func
 import s.net
-import s.hacks
-import requests
-import time
-import six
+
+import pool.proc
+import pool.thread
+import schema
 
 
 class schemas:
@@ -49,32 +47,32 @@ def _try_decode(text):
         return text
 
 
-def _new_handler_method(fn):
+def _handler_function_to_tornado_handler_method(fn):
     name = s.func.name(fn)
     @tornado.gen.coroutine
     def method(self, **args):
-        request = _request_to_dict(self.request, args)
+        request = _tornado_request_to_dict(self.request, args)
         try:
             response = yield fn(request)
         except:
             logging.exception('uncaught exception in: %s', name)
             response = {'code': 500}
-        _set_handler_response(response, self)
+        _update_handler_from_dict_response(response, self)
     method.fn = fn
     return method
 
 
-@s.schema.check(_kwargs={str: types.FunctionType}, _return=type)
-def _verbs_to_handler(**verbs):
+@schema.check(_kwargs={str: types.FunctionType}, _return=type)
+def _verbs_dict_to_tornado_handler_class(**verbs):
     class Handler(tornado.web.RequestHandler):
         for verb, fn in verbs.items():
-            locals()[verb.lower()] = _new_handler_method(fn)
+            locals()[verb.lower()] = _handler_function_to_tornado_handler_method(fn)
         del verb, fn
     return Handler
 
 
-@s.schema.check(schemas.response, tornado.web.RequestHandler)
-def _set_handler_response(response, handler):
+@schema.check(schemas.response, tornado.web.RequestHandler)
+def _update_handler_from_dict_response(response, handler):
     body = response.get('body', '')
     body = body if isinstance(body, s.data.string_types + (bytes,)) else json.dumps(body)
     handler.write(body)
@@ -83,8 +81,8 @@ def _set_handler_response(response, handler):
         handler.set_header(header, value)
 
 
-@s.schema.check(str, _return=schemas.request['query'])
-def _query_parse(query):
+@schema.check(str, _return=schemas.request['query'])
+def _parse_query_string(query):
     parsed = six.moves.urllib.parse.parse_qs(query, True)
     val = {k: v if len(v) > 1 else v.pop()
            for k, v in parsed.items()}
@@ -94,48 +92,48 @@ def _query_parse(query):
     return val
 
 
-@s.schema.check(tornado.httputil.HTTPServerRequest, {str: str}, _return=schemas.request)
-def _request_to_dict(obj, args):
+@schema.check(tornado.httputil.HTTPServerRequest, {str: str}, _return=schemas.request)
+def _tornado_request_to_dict(obj, args):
     body = _try_decode(obj.body)
     with s.exceptions.ignore(ValueError, TypeError):
         body = json.loads(body)
     return {'verb': obj.method.lower(),
             'url': obj.uri,
             'path': obj.path,
-            'query': _query_parse(obj.query),
+            'query': _parse_query_string(obj.query),
             'body': body,
             'headers': dict(obj.headers),
             'args': args}
 
 
-@s.schema.check(str, _return=str)
-def _parse_path(path):
+@schema.check(str, _return=str)
+def _parse_route_str(route):
     return '/'.join(['(?P<{}>.*)'.format(x[1:])
                      if x.startswith(':')
                      else x
-                     for x in path.split('/')])
+                     for x in route.split('/')])
 
 
-@s.schema.check([(str, {str: types.FunctionType})], debug=bool, _return=tornado.web.Application)
+@schema.check([(str, {str: types.FunctionType})], debug=bool, _return=tornado.web.Application)
 def app(routes, debug=False):
-    routes = [(_parse_path(path), _verbs_to_handler(**verbs))
-              for path, verbs in routes]
+    routes = [(_parse_route_str(route),
+               _verbs_dict_to_tornado_handler_class(**verbs))
+              for route, verbs in routes]
     return tornado.web.Application(routes, debug=debug)
 
 
-def wait_for_http(url):
+def wait_for_http(url, max_wait_seconds=5):
+    start = time.time()
     while True:
+        assert time.time() - start < max_wait_seconds, 'timed out'
         try:
-            with s.log.disable('requests.packages.urllib3.connectionpool'):
-                str(requests.get(url)) # wait for http requests to succeed
+            assert get_sync(url)['code'] != 599
             break
-        except requests.exceptions.ConnectionError:
+        except AssertionError:
             time.sleep(1e-6)
 
 
-# TODO this schema is particularly verbose...
 @contextlib.contextmanager
-# @s.schema.check((':or', lambda x: callable(x), tornado.web.Application), poll=(':or', bool, str), before_start=lambda x: callable(x), _freeze=False)
 def test(app, poll='/', context=lambda: mock.patch.object(mock, '_fake_', create=True), use_thread=False):
     port = s.net.free_port()
     url = 'http://0.0.0.0:{}'.format(port)
@@ -147,7 +145,7 @@ def test(app, poll='/', context=lambda: mock.patch.object(mock, '_fake_', create
                 app().listen(port)
             if not use_thread:
                 tornado.ioloop.IOLoop.current().start()
-    proc = (s.thread.new if use_thread else s.proc.new)(run)
+    proc = (pool.thread.new if use_thread else pool.proc.new)(run)
     if poll:
         wait_for_http(url + poll)
     try:
@@ -179,7 +177,7 @@ faux_app = None
 
 
 @tornado.gen.coroutine
-@s.schema.check(str, str, timeout=(':or', int, float), blowup=bool, body=schemas.json, query=dict, _kwargs=dict, _return=schemas.response)
+@schema.check(str, str, timeout=(':or', int, float), blowup=bool, body=schemas.json, query=dict, _kwargs=dict, _return=schemas.response)
 def _fetch(verb, url, **kw):
     fetcher = _faux_fetch if faux_app else _real_fetch
     raise tornado.gen.Return((yield fetcher(verb, url, **kw)))
@@ -194,7 +192,7 @@ def _parse_body(body):
 
 @tornado.gen.coroutine
 def _real_fetch(verb, url, **kw):
-    url, timeout, blowup, kw = _process_kwargs(url, kw)
+    url, timeout, blowup, kw = _process_fetch_kwargs(url, kw)
     request = tornado.httpclient.HTTPRequest(url, method=verb, **kw)
     future = tornado.concurrent.Future()
     response = tornado.httpclient.AsyncHTTPClient().fetch(request, callback=lambda x: future.set_result(x))
@@ -219,7 +217,7 @@ def _real_fetch(verb, url, **kw):
 def _faux_fetch(verb, url, **kw):
     assert isinstance(faux_app, tornado.web.Application)
     query = kw.get('query', {})
-    url, _, blowup, kw = _process_kwargs(url, kw)
+    url, _, blowup, kw = _process_fetch_kwargs(url, kw)
     dispatcher = tornado.web._RequestDispatcher(faux_app, None)
     dispatcher.set_request(tornado.httputil.HTTPServerRequest(method=verb, uri=url, **kw))
     args = dispatcher.path_kwargs
@@ -243,7 +241,7 @@ def _faux_fetch(verb, url, **kw):
     raise tornado.gen.Return(response)
 
 
-def _process_kwargs(url, kw):
+def _process_fetch_kwargs(url, kw):
     timeout = kw.pop('timeout', 10)
     if 'body' in kw and not isinstance(kw['body'], s.data.string_types + (bytes,)):
         kw['body'] = json.dumps(kw['body'])
@@ -255,7 +253,7 @@ def _process_kwargs(url, kw):
     return url, timeout, blowup, kw
 
 
-@s.schema.check(str, _kwargs=dict)
+@schema.check(str, _kwargs=dict)
 def get(url, **kw):
     return _fetch('GET', url, **kw)
 
@@ -265,13 +263,20 @@ def post(url, body='', **kw):
     return _fetch('POST', url, body=body, **kw)
 
 
-# TODO make_sync can be a decorator? if not just define these as functions the long way. its better docs.
+def get_sync(url, **kw):
+    @tornado.gen.coroutine
+    def fn():
+        raise tornado.gen.Return((yield get(url, **kw)))
+    tornado.ioloop.IOLoop.clear_instance()
+    return tornado.ioloop.IOLoop.instance().run_sync(fn)
 
-# get_sync(url, **kw)
-get_sync = s.async.make_sync(get)
 
-# post_sync(url, data, **kw)
-post_sync = s.async.make_sync(post)
+def post_sync(url, data, **kw):
+    @tornado.gen.coroutine
+    def fn():
+        raise tornado.gen.Return((yield post(url, data, **kw)))
+    tornado.ioloop.IOLoop.clear_instance()
+    return tornado.ioloop.IOLoop.instance().run_sync(fn)
 
 
 class Timeout(Exception):
@@ -282,14 +287,14 @@ class Timeout(Exception):
 def validate(*args, **kwargs):
     def decorator(decoratee):
         name = s.func.name(decoratee)
-        request_schema = s.schema._get_schemas(decoratee, args, kwargs)['arg'][0]
-        decoratee = s.schema.check(*args, **kwargs)(decoratee)
+        request_schema = schema._get_schemas(decoratee, args, kwargs)['arg'][0]
+        decoratee = schema.check(*args, **kwargs)(decoratee)
         @functools.wraps(decoratee)
         @tornado.gen.coroutine
         def decorated(request):
             try:
-                s.schema._validate(request_schema, request)
-            except s.schema.Error:
+                schema._validate(request_schema, request)
+            except schema.Error:
                 raise tornado.gen.Return({'code': 403, 'reason': 'your request is not valid', 'body': traceback.format_exc() + '\nvalidation failed for: {}'.format(name)})
             else:
                 raise tornado.gen.Return((yield decoratee(request)))
