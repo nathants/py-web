@@ -5,19 +5,20 @@ import functools
 import json
 import logging
 import mock
-import six
 import time
+import traceback
+import types
+
+import six
 import tornado.httpclient
 import tornado.httputil
 import tornado.web
-import traceback
-import types
+
 
 import s.data
 import s.exceptions
 import s.func
 import s.net
-
 import pool.proc
 import pool.thread
 import schema
@@ -130,7 +131,7 @@ def wait_for_http(url, max_wait_seconds=5):
             assert get_sync(url)['code'] != 599
             break
         except AssertionError:
-            time.sleep(1e-6)
+            time.sleep(.001)
 
 
 @contextlib.contextmanager
