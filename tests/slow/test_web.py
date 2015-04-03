@@ -37,12 +37,14 @@ def test_normal_app():
 def test_get_timeout():
     @tornado.gen.coroutine
     def handler(request):
-        yield tornado.gen.sleep(1)
+        if 'sleep' in request['query']:
+            yield tornado.gen.sleep(1)
+        handler._sleep = True
         raise tornado.gen.Return({})
 
     @tornado.gen.coroutine
     def main(url):
-        yield web.get(url, timeout=.001)
+        yield web.get(url + '?sleep', timeout=.001)
 
     app = web.app([('/', {'get': handler})])
     with web.test(app) as url:
