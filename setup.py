@@ -10,4 +10,5 @@ setuptools.setup(
     url='http://github.com/nathants/web',
     packages=setuptools.find_packages(),
     install_requires=open('requirements.txt').readlines(),
+    description='a minimal, data centric web library'
 )
