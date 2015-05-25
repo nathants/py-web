@@ -268,15 +268,13 @@ def get_sync(url, **kw):
     @tornado.gen.coroutine
     def fn():
         raise tornado.gen.Return((yield get(url, **kw)))
-    tornado.ioloop.IOLoop.clear_instance()
     return tornado.ioloop.IOLoop.instance().run_sync(fn)
 
 
-def post_sync(url, data, **kw):
+def post_sync(url, data='', **kw):
     @tornado.gen.coroutine
     def fn():
         raise tornado.gen.Return((yield post(url, data, **kw)))
-    tornado.ioloop.IOLoop.clear_instance()
     return tornado.ioloop.IOLoop.instance().run_sync(fn)
 
 
