@@ -115,12 +115,12 @@ def _parse_route_str(route):
                      for x in route.split('/')])
 
 
-@schema.check([(str, {str: types.FunctionType})], debug=bool, _return=tornado.web.Application)
-def app(routes, debug=False):
+@schema.check([(str, {str: types.FunctionType})], debug=bool, _return=tornado.web.Application, _kwargs=dict) # TODO this is pretty awful
+def app(routes, debug=False, **settings):
     routes = [(_parse_route_str(route),
                _verbs_dict_to_tornado_handler_class(**verbs))
               for route, verbs in routes]
-    return tornado.web.Application(routes, debug=debug)
+    return tornado.web.Application(routes, debug=debug, **settings)
 
 
 def wait_for_http(url, max_wait_seconds=5):
