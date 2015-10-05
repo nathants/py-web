@@ -32,7 +32,7 @@ class schemas:
                'path': str,
                'query': {str: (':or', str, [str]) + s.data.json_types},
                'body': json,
-               'headers': {str: str},
+               'headers': {str: (':or', str, int)},
                'args': {str: str}}
 
     response = {'code': (':optional', int, 200),
@@ -117,6 +117,18 @@ def _parse_route_str(route):
 
 @schema.check([(str, {str: types.FunctionType})], debug=bool, _return=tornado.web.Application, _kwargs=dict) # TODO this is pretty awful
 def app(routes, debug=False, **settings):
+    """
+    # a simple server
+    import web
+    import tornado.ioloop
+    import tornado.gen
+    @tornado.gen.coroutine
+    def handler(req):
+        return {'body': 'hello world!'}
+    handlers = [('/', {'get': handler})]
+    web.app(handlers).listen(8001)
+    tornado.ioloop.IOLoop.instance().start()
+    """
     routes = [(_parse_route_str(route),
                _verbs_dict_to_tornado_handler_class(**verbs))
               for route, verbs in routes]
