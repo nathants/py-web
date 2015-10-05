@@ -2,7 +2,6 @@ from __future__ import absolute_import, print_function
 import contextlib
 import datetime
 import functools
-import json
 import logging
 import mock
 import time
@@ -23,22 +22,24 @@ import pool.proc
 import pool.thread
 import schema
 
+from tornado.web import RequestHandler
+from tornado.httputil import HTTPServerRequest
+
+# todo stop auto json parsing. magic considered harmful.
 
 class schemas:
-    json = (':or',) + s.data.json_types
+    req = {'verb': str,
+           'url': str,
+           'path': str,
+           'query': {str: str},
+           'body': str,
+           'headers': {str: (':U', int)},
+           'args': {str: str}}
 
-    request = {'verb': str,
-               'url': str,
-               'path': str,
-               'query': {str: (':or', str, [str]) + s.data.json_types},
-               'body': json,
-               'headers': {str: (':or', str, int)},
-               'args': {str: str}}
-
-    response = {'code': (':optional', int, 200),
-                'reason': (':optional', (':or', str, None), None),
-                'headers': (':optional', {str: str}, {}),
-                'body': (':optional', (':or', json, str, bytes), '')}
+    rep = {'code': (':O', int, 200),
+           'reason': (':O', (':M', str), None),
+           'headers': (':O', {str: str}, {}),
+           'body': (':O', str, '')}
 
 
 def _try_decode(text):
@@ -52,19 +53,18 @@ def _handler_function_to_tornado_handler_method(fn):
     name = s.func.name(fn)
     @tornado.gen.coroutine
     def method(self, **args):
-        request = _tornado_request_to_dict(self.request, args)
+        req = _tornado_req_to_dict(self.request, args)
         try:
-            response = yield fn(request)
+            rep = yield fn(req)
         except:
             logging.exception('uncaught exception in: %s', name)
-            response = {'code': 500}
-        _update_handler_from_dict_response(response, self)
+            rep = {'code': 500}
+        _update_handler_from_dict_rep(rep, self)
     method.fn = fn
     return method
 
 
-@schema.check(_kwargs={str: types.FunctionType}, _return=type)
-def _verbs_dict_to_tornado_handler_class(**verbs):
+def _verbs_dict_to_tornado_handler_class(**verbs: {str: callable}) -> type:
     class Handler(tornado.web.RequestHandler):
         for verb, fn in verbs.items():
             locals()[verb.lower()] = _handler_function_to_tornado_handler_method(fn)
@@ -72,32 +72,23 @@ def _verbs_dict_to_tornado_handler_class(**verbs):
     return Handler
 
 
-@schema.check(schemas.response, tornado.web.RequestHandler)
-def _update_handler_from_dict_response(response, handler):
-    body = response.get('body', '')
-    body = body if isinstance(body, s.data.string_types + (bytes,)) else json.dumps(body)
+def _update_handler_from_dict_rep(rep: schemas.rep, handler: RequestHandler) -> None:
+    body = rep.get('body', '')
     handler.write(body)
-    handler.set_status(response.get('code', 200), response.get('reason', ''))
-    for header, value in response.get('headers', {}).items():
+    handler.set_status(rep.get('code', 200), rep.get('reason', ''))
+    for header, value in rep.get('headers', {}).items():
         handler.set_header(header, value)
 
 
-@schema.check(str, _return=schemas.request['query'])
-def _parse_query_string(query):
+def _parse_query_string(query: str) -> schemas.req['query']:
     parsed = six.moves.urllib.parse.parse_qs(query, True)
     val = {k: v if len(v) > 1 else v.pop()
            for k, v in parsed.items()}
-    for k, v in val.items():
-        with s.exceptions.ignore(ValueError, TypeError):
-            val[k] = json.loads(v)
     return val
 
 
-@schema.check(tornado.httputil.HTTPServerRequest, {str: str}, _return=schemas.request)
-def _tornado_request_to_dict(obj, args):
+def _tornado_req_to_dict(obj: HTTPServerRequest, args: {str: str}) -> schemas.req:
     body = _try_decode(obj.body)
-    with s.exceptions.ignore(ValueError, TypeError):
-        body = json.loads(body)
     return {'verb': obj.method.lower(),
             'url': obj.uri,
             'path': obj.path,
@@ -107,27 +98,15 @@ def _tornado_request_to_dict(obj, args):
             'args': args}
 
 
-@schema.check(str, _return=str)
-def _parse_route_str(route):
+def _parse_route_str(route: str) -> str:
     return '/'.join(['(?P<{}>.*)'.format(x[1:])
                      if x.startswith(':')
                      else x
                      for x in route.split('/')])
 
 
-@schema.check([(str, {str: types.FunctionType})], debug=bool, _return=tornado.web.Application, _kwargs=dict) # TODO this is pretty awful
-def app(routes, debug=False, **settings):
+def app(routes: [(str, {str: callable})], debug: bool = False, **settings: dict) -> tornado.web.Application:
     """
-    # a simple server
-    import web
-    import tornado.ioloop
-    import tornado.gen
-    @tornado.gen.coroutine
-    def handler(req):
-        return {'body': 'hello world!'}
-    handlers = [('/', {'get': handler})]
-    web.app(handlers).listen(8001)
-    tornado.ioloop.IOLoop.instance().start()
     """
     routes = [(_parse_route_str(route),
                _verbs_dict_to_tornado_handler_class(**verbs))
@@ -190,40 +169,32 @@ faux_app = None
 
 
 @tornado.gen.coroutine
-@schema.check(str, str, timeout=(':or', int, float), blowup=bool, body=schemas.json, query=dict, _kwargs=dict, _return=schemas.response)
 def _fetch(verb, url, **kw):
     fetcher = _faux_fetch if faux_app else _real_fetch
-    raise tornado.gen.Return((yield fetcher(verb, url, **kw)))
-
-
-def _parse_body(body):
-    body = _try_decode(body or b'')
-    with s.exceptions.ignore(ValueError, TypeError):
-        body = json.loads(body)
-    return body
+    return (yield fetcher(verb, url, **kw))
 
 
 @tornado.gen.coroutine
 def _real_fetch(verb, url, **kw):
     url, timeout, blowup, kw = _process_fetch_kwargs(url, kw)
-    request = tornado.httpclient.HTTPRequest(url, method=verb, **kw)
+    req = tornado.httpclient.HTTPRequest(url, method=verb, **kw)
     future = tornado.concurrent.Future()
-    response = tornado.httpclient.AsyncHTTPClient().fetch(request, callback=lambda x: future.set_result(x))
+    rep = tornado.httpclient.AsyncHTTPClient().fetch(req, callback=lambda x: future.set_result(x))
     if timeout:
         tornado.ioloop.IOLoop.current().add_timeout(
             datetime.timedelta(seconds=timeout),
             lambda: not future.done() and future.set_exception(Timeout())
         )
-    response = yield future
-    if blowup and response.code != 200:
-        raise Blowup('{verb} {url} did not return 200, returned {code}'.format(code=response.code, **locals()),
-                     response.code,
-                     response.reason,
-                     response.body)
-    raise tornado.gen.Return({'code': response.code,
-                              'reason': response.reason,
-                              'headers': {k.lower(): v for k, v in response.headers.items()},
-                              'body': _parse_body(response.body or b'')})
+    rep = yield future
+    if blowup and rep.code != 200:
+        raise Blowup('{verb} {url} did not return 200, returned {code}'.format(code=rep.code, **locals()),
+                     rep.code,
+                     rep.reason,
+                     rep.body)
+    return {'code': rep.code,
+            'reason': rep.reason,
+            'headers': {k.lower(): v for k, v in rep.headers.items()},
+            'body': _try_decode(rep.body or b'')}
 
 
 @tornado.gen.coroutine
@@ -238,36 +209,33 @@ def _faux_fetch(verb, url, **kw):
         handler = getattr(dispatcher.handler_class, verb.lower()).fn
     except AttributeError:
         raise Exception('no route matched: {verb} {url}'.format(**locals()))
-    request = {'verb': verb,
+    req = {'verb': verb,
                'url': url,
                'path': '/' + url.split('://')[-1].split('/', 1)[-2],
                'query': query,
-               'body': _parse_body(kw.get('body', b'')),
+               'body': _try_decode(kw.get('body', b'')),
                'headers': kw.get('headers', {}),
                'args': {k: _try_decode(v) for k, v in args.items()}}
-    response = (yield handler(request))
-    if blowup and response.get('code', 200) != 200:
-        raise Blowup('{verb} {url} did not return 200, returned {code}'.format(code=response['code'], **locals()),
-                     response['code'],
-                     response.get('reason', ''),
-                     response.get('body', ''))
-    raise tornado.gen.Return(response)
+    rep = (yield handler(req))
+    if blowup and rep.get('code', 200) != 200:
+        raise Blowup('{verb} {url} did not return 200, returned {code}'.format(code=rep['code'], **locals()),
+                     rep['code'],
+                     rep.get('reason', ''),
+                     rep.get('body', ''))
+    return rep
 
 
 def _process_fetch_kwargs(url, kw):
     timeout = kw.pop('timeout', 10)
-    if 'body' in kw and not isinstance(kw['body'], s.data.string_types + (bytes,)):
-        kw['body'] = json.dumps(kw['body'])
     blowup = kw.pop('blowup', False)
     if 'query' in kw:
         assert '?' not in url, 'you cannot user keyword arg query and have ? already in the url: {url}'.format(**locals())
-        url += '?' + '&'.join('{}={}'.format(k, tornado.escape.url_escape(v if isinstance(v, s.data.string_types) else json.dumps(v)))
+        url += '?' + '&'.join('{}={}'.format(k, tornado.escape.url_escape(v))
                               for k, v in kw.pop('query').items())
     return url, timeout, blowup, kw
 
 
-@schema.check(str, _kwargs=dict)
-def get(url, **kw):
+def get(url: str, **kw):
     return _fetch('GET', url, **kw)
 
 
@@ -279,14 +247,14 @@ def post(url, body='', **kw):
 def get_sync(url, **kw):
     @tornado.gen.coroutine
     def fn():
-        raise tornado.gen.Return((yield get(url, **kw)))
+        return (yield get(url, **kw))
     return tornado.ioloop.IOLoop.instance().run_sync(fn)
 
 
 def post_sync(url, data='', **kw):
     @tornado.gen.coroutine
     def fn():
-        raise tornado.gen.Return((yield post(url, data, **kw)))
+        return (yield post(url, data, **kw))
     return tornado.ioloop.IOLoop.instance().run_sync(fn)
 
 
@@ -302,12 +270,12 @@ def validate(*args, **kwargs):
         decoratee = schema.check(*args, **kwargs)(decoratee)
         @functools.wraps(decoratee)
         @tornado.gen.coroutine
-        def decorated(request):
+        def decorated(req):
             try:
-                schema._validate(request_schema, request)
+                schema._validate(request_schema, req)
             except schema.Error:
-                raise tornado.gen.Return({'code': 403, 'reason': 'your request is not valid', 'body': traceback.format_exc() + '\nvalidation failed for: {}'.format(name)})
+                return {'code': 403, 'reason': 'your req is not valid', 'body': traceback.format_exc() + '\nvalidation failed for: {}'.format(name)}
             else:
-                raise tornado.gen.Return((yield decoratee(request)))
+                return (yield decoratee(req))
         return decorated
     return decorator

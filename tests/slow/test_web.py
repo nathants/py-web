@@ -1,8 +1,8 @@
 from __future__ import print_function, absolute_import
+import json
 import pytest
 import tornado.gen
 import tornado.ioloop
-
 import s.net
 import pool.proc
 import web
@@ -10,7 +10,7 @@ import web
 
 def test_non_2XX_codes():
     @tornado.gen.coroutine
-    def handler(request):
+    def handler(req):
         yield tornado.gen.moment
         1 / 0
 
@@ -23,9 +23,9 @@ def test_non_2XX_codes():
 
 def test_normal_app():
     @tornado.gen.coroutine
-    def handler(request):
+    def handler(req):
         yield tornado.gen.moment
-        raise tornado.gen.Return({'body': 'asdf'})
+        return {'body': 'asdf'}
     port = s.net.free_port()
     web.app([('/', {'get': handler})]).listen(port)
     proc = pool.proc.new(tornado.ioloop.IOLoop.current().start)
@@ -36,11 +36,11 @@ def test_normal_app():
 
 def test_get_timeout():
     @tornado.gen.coroutine
-    def handler(request):
-        if 'sleep' in request['query']:
+    def handler(req):
+        if 'sleep' in req['query']:
             yield tornado.gen.sleep(1)
         handler._sleep = True
-        raise tornado.gen.Return({})
+        return {}
 
     @tornado.gen.coroutine
     def main(url):
@@ -54,34 +54,18 @@ def test_get_timeout():
 
 def test_get():
     @tornado.gen.coroutine
-    def handler(request):
+    def handler(req):
         yield tornado.gen.moment
-        raise tornado.gen.Return({'body': 'ok',
-                                  'code': 200,
-                                  'headers': {'foo': 'bar'}})
+        return {'body': 'ok',
+                'code': 200,
+                'headers': {'foo': 'bar'}}
 
     @tornado.gen.coroutine
     def main(url):
-        resp = yield web.get(url)
-        assert resp['body'] == 'ok'
-        assert resp['code'] == 200
-        assert resp['headers']['foo'] == 'bar'
-
-    app = web.app([('/', {'get': handler})])
-    with web.test(app) as url:
-        tornado.ioloop.IOLoop.instance().run_sync(lambda: main(url))
-
-
-def test_get_params_json():
-    @tornado.gen.coroutine
-    def handler(request):
-        yield tornado.gen.moment
-        raise tornado.gen.Return({'body': request['query']})
-
-    @tornado.gen.coroutine
-    def main(url):
-        resp = yield web.get(url, query={'data': [1, 2, 3]})
-        assert resp['body'] == {'data': [1, 2, 3]}
+        rep = yield web.get(url)
+        assert rep['body'] == 'ok'
+        assert rep['code'] == 200
+        assert rep['headers']['foo'] == 'bar'
 
     app = web.app([('/', {'get': handler})])
     with web.test(app) as url:
@@ -90,14 +74,14 @@ def test_get_params_json():
 
 def test_get_params():
     @tornado.gen.coroutine
-    def handler(request):
+    def handler(req):
         yield tornado.gen.moment
-        raise tornado.gen.Return({'body': request['query']})
+        return {'body': req['query']}
 
     @tornado.gen.coroutine
     def main(url):
-        resp = yield web.get(url, query={'foo': 'bar'})
-        assert resp['body'] == {'foo': 'bar'}
+        rep = yield web.get(url, query={'foo': 'bar'})
+        assert json.loads(rep['body']) == {'foo': 'bar'}
 
     app = web.app([('/', {'get': handler})])
     with web.test(app) as url:
@@ -106,14 +90,15 @@ def test_get_params():
 
 def test_post():
     @tornado.gen.coroutine
-    def handler(request):
+    def handler(req):
         yield tornado.gen.moment
-        raise tornado.gen.Return({'code': request['body']['num'] + 1})
+        body = json.loads(req['body'])
+        return {'code': json.dumps(body['num'] + 1)}
 
     @tornado.gen.coroutine
     def main(url):
-        resp = yield web.post(url, {'num': 200})
-        assert resp['code'] == 201
+        rep = yield web.post(url, json.dumps({'num': 200}))
+        assert rep['code'] == 201
 
     app = web.app([('/', {'post': handler})])
     with web.test(app) as url:
@@ -122,14 +107,14 @@ def test_post():
 
 def test_post_timeout():
     @tornado.gen.coroutine
-    def handler(request):
+    def handler(req):
         yield tornado.gen.sleep(1)
-        raise tornado.gen.Return({'code': 200})
+        return {'code': 200}
 
     @tornado.gen.coroutine
     def main(url):
-        resp = yield web.post(url, '', timeout=.001)
-        assert resp['code'] == 201
+        rep = yield web.post(url, '', timeout=.001)
+        assert rep['code'] == 201
 
     app = web.app([('/', {'post': handler})])
     with web.test(app) as url:
@@ -139,62 +124,62 @@ def test_post_timeout():
 
 def test_basic():
     @tornado.gen.coroutine
-    def handler(request):
+    def handler(req):
         yield tornado.gen.moment
-        assert request['verb'] == 'get'
-        raise tornado.gen.Return({'headers': {'foo': 'bar'},
-                                  'code': 200,
-                                  'body': 'ok'})
+        assert req['verb'] == 'get'
+        return {'headers': {'foo': 'bar'},
+                'code': 200,
+                'body': 'ok'}
     app = web.app([('/', {'get': handler})])
     with web.test(app) as url:
-        resp = web.get_sync(url)
-        assert resp['body'] == 'ok'
-        assert resp['headers']['foo'] == 'bar'
+        rep = web.get_sync(url)
+        assert rep['body'] == 'ok'
+        assert rep['headers']['foo'] == 'bar'
 
 
 def test_middleware():
     def middleware(old_handler):
         @tornado.gen.coroutine
-        def new_handler(request):
-            request = s.dicts.merge(request, {'headers': {'asdf': ' [mod req]'}})
-            response = yield old_handler(request)
-            response = s.dicts.merge(response, {'body': response['body'] + ' [mod resp]'})
-            raise tornado.gen.Return(response)
+        def new_handler(req):
+            req = s.dicts.merge(req, {'headers': {'asdf': ' [mod req]'}})
+            rep = yield old_handler(req)
+            rep = s.dicts.merge(rep, {'body': rep['body'] + ' [mod rep]'})
+            return rep
         return new_handler
     @middleware
     @tornado.gen.coroutine
-    def handler(request):
+    def handler(req):
         yield tornado.gen.moment
-        raise tornado.gen.Return({'headers': {'foo': 'bar'},
-                                  'code': 200,
-                                  'body': 'ok' + request['headers']['asdf']})
+        return {'headers': {'foo': 'bar'},
+                'code': 200,
+                'body': 'ok' + req['headers']['asdf']}
     app = web.app([('/', {'get': handler})])
     with web.test(app) as url:
-        resp = web.get_sync(url)
-        assert resp['body'] == 'ok [mod req] [mod resp]'
+        rep = web.get_sync(url)
+        assert rep['body'] == 'ok [mod req] [mod rep]'
 
 
 def test_url_params():
     @tornado.gen.coroutine
-    def handler(request):
+    def handler(req):
         yield tornado.gen.moment
-        raise tornado.gen.Return({'code': 200,
-                                  'body': request['query']})
+        return {'code': 200,
+                'body': req['query']}
     app = web.app([('/', {'get': handler})])
     with web.test(app) as url:
-        resp = web.get_sync(url + '/?asdf=123&foo=bar&foo=notbar&stuff')
-        assert resp['body'] == {'asdf': 123,
-                                'foo': ['bar', 'notbar'],
-                                'stuff': ''}
+        rep = web.get_sync(url + '/?asdf=123&foo=bar&foo=notbar&stuff')
+        assert json.loads(rep['body']) == {'asdf': '123',
+                                           'foo': ['bar', 'notbar'],
+                                           'stuff': ''}
 
 
 def test_url_args():
     @tornado.gen.coroutine
-    def handler(request):
+    def handler(req):
         yield tornado.gen.moment
-        raise tornado.gen.Return({'code': 200,
-                                  'body': {'foo': request['args']['foo']}})
+        return {'code': 200,
+                'body': json.dumps({'foo': req['args']['foo']})}
     app = web.app([('/:foo/stuff', {'get': handler})])
     with web.test(app) as url:
-        resp = web.get_sync(url + '/something/stuff')
-        assert resp['body'] == {'foo': 'something'}, resp
+        rep = web.get_sync(url + '/something/stuff')
+        assert json.loads(rep['body']) == {'foo': 'something'}, rep
