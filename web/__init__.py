@@ -1,4 +1,3 @@
-from __future__ import absolute_import, print_function
 import contextlib
 import datetime
 import functools
@@ -6,7 +5,6 @@ import logging
 import mock
 import time
 import traceback
-import types
 
 import six
 import tornado.httpclient
@@ -31,13 +29,13 @@ class schemas:
     req = {'verb': str,
            'url': str,
            'path': str,
-           'query': {str: str},
+           'query': {str: (':U', str, [str])},
            'body': str,
-           'headers': {str: (':U', int)},
+           'headers': {str: (':U', str, int)},
            'args': {str: str}}
 
     rep = {'code': (':O', int, 200),
-           'reason': (':O', (':M', str), None),
+           'reason': (':O', (':U', str, None), None),
            'headers': (':O', {str: str}, {}),
            'body': (':O', str, '')}
 
@@ -64,6 +62,7 @@ def _handler_function_to_tornado_handler_method(fn):
     return method
 
 
+@schema.check
 def _verbs_dict_to_tornado_handler_class(**verbs: {str: callable}) -> type:
     class Handler(tornado.web.RequestHandler):
         for verb, fn in verbs.items():
@@ -72,6 +71,7 @@ def _verbs_dict_to_tornado_handler_class(**verbs: {str: callable}) -> type:
     return Handler
 
 
+@schema.check
 def _update_handler_from_dict_rep(rep: schemas.rep, handler: RequestHandler) -> None:
     body = rep.get('body', '')
     handler.write(body)
@@ -80,6 +80,7 @@ def _update_handler_from_dict_rep(rep: schemas.rep, handler: RequestHandler) -> 
         handler.set_header(header, value)
 
 
+@schema.check
 def _parse_query_string(query: str) -> schemas.req['query']:
     parsed = six.moves.urllib.parse.parse_qs(query, True)
     val = {k: v if len(v) > 1 else v.pop()
@@ -87,6 +88,7 @@ def _parse_query_string(query: str) -> schemas.req['query']:
     return val
 
 
+@schema.check
 def _tornado_req_to_dict(obj: HTTPServerRequest, args: {str: str}) -> schemas.req:
     body = _try_decode(obj.body)
     return {'verb': obj.method.lower(),
@@ -98,6 +100,7 @@ def _tornado_req_to_dict(obj: HTTPServerRequest, args: {str: str}) -> schemas.re
             'args': args}
 
 
+@schema.check
 def _parse_route_str(route: str) -> str:
     return '/'.join(['(?P<{}>.*)'.format(x[1:])
                      if x.startswith(':')
@@ -105,7 +108,8 @@ def _parse_route_str(route: str) -> str:
                      for x in route.split('/')])
 
 
-def app(routes: [(str, {str: callable})], debug: bool = False, **settings: dict) -> tornado.web.Application:
+@schema.check
+def app(routes: [(str, {str: callable})], debug: bool = False, **settings) -> tornado.web.Application:
     """
     """
     routes = [(_parse_route_str(route),
@@ -208,14 +212,14 @@ def _faux_fetch(verb, url, **kw):
     try:
         handler = getattr(dispatcher.handler_class, verb.lower()).fn
     except AttributeError:
-        raise Exception('no route matched: {verb} {url}'.format(**locals()))
+        raise Exception('no route matched: {verb} {url}'.format(**locals())) from None
     req = {'verb': verb,
-               'url': url,
-               'path': '/' + url.split('://')[-1].split('/', 1)[-2],
-               'query': query,
-               'body': _try_decode(kw.get('body', b'')),
-               'headers': kw.get('headers', {}),
-               'args': {k: _try_decode(v) for k, v in args.items()}}
+           'url': url,
+           'path': '/' + url.split('://')[-1].split('/', 1)[-2],
+           'query': query,
+           'body': _try_decode(kw.get('body', b'')),
+           'headers': kw.get('headers', {}),
+           'args': {k: _try_decode(v) for k, v in args.items()}}
     rep = (yield handler(req))
     if blowup and rep.get('code', 200) != 200:
         raise Blowup('{verb} {url} did not return 200, returned {code}'.format(code=rep['code'], **locals()),
@@ -235,7 +239,7 @@ def _process_fetch_kwargs(url, kw):
     return url, timeout, blowup, kw
 
 
-def get(url: str, **kw):
+def get(url, **kw):
     return _fetch('GET', url, **kw)
 
 

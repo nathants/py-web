@@ -1,4 +1,3 @@
-from __future__ import print_function, absolute_import
 import json
 import pytest
 import tornado.gen
@@ -76,7 +75,7 @@ def test_get_params():
     @tornado.gen.coroutine
     def handler(req):
         yield tornado.gen.moment
-        return {'body': req['query']}
+        return {'body': json.dumps(req['query'])}
 
     @tornado.gen.coroutine
     def main(url):
@@ -93,7 +92,7 @@ def test_post():
     def handler(req):
         yield tornado.gen.moment
         body = json.loads(req['body'])
-        return {'code': json.dumps(body['num'] + 1)}
+        return {'code': body['num'] + 1}
 
     @tornado.gen.coroutine
     def main(url):
@@ -164,7 +163,7 @@ def test_url_params():
     def handler(req):
         yield tornado.gen.moment
         return {'code': 200,
-                'body': req['query']}
+                'body': json.dumps(req['query'])}
     app = web.app([('/', {'get': handler})])
     with web.test(app) as url:
         rep = web.get_sync(url + '/?asdf=123&foo=bar&foo=notbar&stuff')
@@ -183,3 +182,17 @@ def test_url_args():
     with web.test(app) as url:
         rep = web.get_sync(url + '/something/stuff')
         assert json.loads(rep['body']) == {'foo': 'something'}, rep
+
+
+def test_validate():
+    @tornado.gen.coroutine
+    def handler(req):
+        yield tornado.gen.moment
+        return {'code': 200,
+                'body': json.dumps(req['query'])}
+    app = web.app([('/', {'get': handler})])
+    with web.test(app) as url:
+        rep = web.get_sync(url + '/?asdf=123&foo=bar&foo=notbar&stuff')
+        assert json.loads(rep['body']) == {'asdf': '123',
+                                           'foo': ['bar', 'notbar'],
+                                           'stuff': ''}
