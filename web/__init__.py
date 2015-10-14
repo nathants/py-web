@@ -23,7 +23,6 @@ import schema
 from tornado.web import RequestHandler
 from tornado.httputil import HTTPServerRequest
 
-# todo stop auto json parsing. magic considered harmful.
 
 class schemas:
     req = {'verb': str,
@@ -111,6 +110,16 @@ def _parse_route_str(route: str) -> str:
 @schema.check
 def app(routes: [(str, {str: callable})], debug: bool = False, **settings) -> tornado.web.Application:
     """
+    # a simple server
+    import web
+    import tornado.ioloop
+    import tornado.gen
+    @tornado.gen.coroutine
+    def handler(req):
+        return {'body': 'hello world!'}
+    handlers = [('/', {'get': handler})]
+    web.app(handlers).listen(8001)
+    tornado.ioloop.IOLoop.instance().start()
     """
     routes = [(_parse_route_str(route),
                _verbs_dict_to_tornado_handler_class(**verbs))
@@ -126,7 +135,7 @@ def wait_for_http(url, max_wait_seconds=5):
             assert get_sync(url)['code'] != 599
             break
         except AssertionError:
-            time.sleep(.001)
+            time.sleep(.01)
 
 
 @contextlib.contextmanager
@@ -173,7 +182,8 @@ faux_app = None
 
 
 @tornado.gen.coroutine
-def _fetch(verb, url, **kw):
+@schema.check
+def _fetch(verb: str, url: str, **kw: dict) -> schemas.rep:
     fetcher = _faux_fetch if faux_app else _real_fetch
     return (yield fetcher(verb, url, **kw))
 
