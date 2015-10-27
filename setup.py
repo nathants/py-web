@@ -4,11 +4,12 @@ import setuptools
 setuptools.setup(
     version="0.0.1",
     license='mit',
-    name="web",
+    name='py-web',
     author='nathan todd-stone',
     author_email='me@nathants.com',
-    url='http://github.com/nathants/web',
-    packages=setuptools.find_packages(),
-    install_requires=open('requirements.txt').readlines(),
+    url='http://github.com/nathants/py-web',
+    packages=['web'],
+    install_requires=['tornado==4.1',
+                      'mock==1.0.1'],
     description='a minimal, data centric web library'
 )

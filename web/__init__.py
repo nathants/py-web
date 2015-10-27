@@ -12,10 +12,10 @@ import tornado.httputil
 import tornado.web
 
 
-import s.data
-import s.exceptions
-import s.func
-import s.net
+import util.data
+import util.exceptions
+import util.func
+import util.net
 import pool.proc
 import pool.thread
 import schema
@@ -47,7 +47,7 @@ def _try_decode(text):
 
 
 def _handler_function_to_tornado_handler_method(fn):
-    name = s.func.name(fn)
+    name = util.func.name(fn)
     @tornado.gen.coroutine
     def method(self, **args):
         req = _tornado_req_to_dict(self.request, args)
@@ -140,7 +140,7 @@ def wait_for_http(url, max_wait_seconds=5):
 
 @contextlib.contextmanager
 def test(app, poll='/', context=lambda: mock.patch.object(mock, '_fake_', create=True), use_thread=False):
-    port = s.net.free_port()
+    port = util.net.free_port()
     url = 'http://0.0.0.0:{}'.format(port)
     def run():
         with context():
@@ -162,7 +162,7 @@ def test(app, poll='/', context=lambda: mock.patch.object(mock, '_fake_', create
             proc.terminate()
 
 
-with s.exceptions.ignore(ImportError):
+with util.exceptions.ignore(ImportError):
     tornado.httpclient.AsyncHTTPClient.configure("tornado.curl_httpclient.CurlAsyncHTTPClient")
 
 
@@ -276,10 +276,10 @@ class Timeout(Exception):
     pass
 
 
-@s.func.optionally_parameterized_decorator
+@util.func.optionally_parameterized_decorator
 def validate(*args, **kwargs):
     def decorator(decoratee):
-        name = s.func.name(decoratee)
+        name = util.func.name(decoratee)
         request_schema = schema._get_schemas(decoratee, args, kwargs)['arg'][0]
         decoratee = schema.check(*args, **kwargs)(decoratee)
         @functools.wraps(decoratee)

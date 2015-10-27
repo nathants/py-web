@@ -2,7 +2,7 @@ import json
 import pytest
 import tornado.gen
 import tornado.ioloop
-import s.net
+import util.net
 import pool.proc
 import web
 
@@ -25,7 +25,7 @@ def test_normal_app():
     def handler(req):
         yield tornado.gen.moment
         return {'body': 'asdf'}
-    port = s.net.free_port()
+    port = util.net.free_port()
     web.app([('/', {'get': handler})]).listen(port)
     proc = pool.proc.new(tornado.ioloop.IOLoop.current().start)
     url = 'http://0.0.0.0:{port}'.format(**locals())
@@ -140,9 +140,9 @@ def test_middleware():
     def middleware(old_handler):
         @tornado.gen.coroutine
         def new_handler(req):
-            req = s.dicts.merge(req, {'headers': {'asdf': ' [mod req]'}})
+            req = util.dicts.merge(req, {'headers': {'asdf': ' [mod req]'}})
             rep = yield old_handler(req)
-            rep = s.dicts.merge(rep, {'body': rep['body'] + ' [mod rep]'})
+            rep = util.dicts.merge(rep, {'body': rep['body'] + ' [mod rep]'})
             return rep
         return new_handler
     @middleware
