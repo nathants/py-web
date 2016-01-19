@@ -2,16 +2,12 @@ import contextlib
 import datetime
 import functools
 import logging
-import mock
 import time
 import traceback
-
 import six
 import tornado.httpclient
 import tornado.httputil
 import tornado.web
-
-
 import util.data
 import util.exceptions
 import util.func
@@ -19,7 +15,7 @@ import util.net
 import pool.proc
 import pool.thread
 import schema
-
+from unittest import mock
 from tornado.web import RequestHandler
 from tornado.httputil import HTTPServerRequest
 
