@@ -2,9 +2,9 @@ import contextlib
 import datetime
 import functools
 import logging
+import urllib
 import time
 import traceback
-import six
 import tornado.httpclient
 import tornado.httputil
 import tornado.web
@@ -77,7 +77,7 @@ def _update_handler_from_dict_rep(rep: schemas.rep, handler: RequestHandler) -> 
 
 @schema.check
 def _parse_query_string(query: str) -> schemas.req['query']:
-    parsed = six.moves.urllib.parse.parse_qs(query, True)
+    parsed = urllib.parse.parse_qs(query, True)
     val = {k: v if len(v) > 1 else v.pop()
            for k, v in parsed.items()}
     return val
