@@ -172,17 +172,27 @@ def test_url_params():
                                            'stuff': ''}
 
 
+def test_url_kwargs():
+    @tornado.gen.coroutine
+    def handler(req):
+        yield tornado.gen.moment
+        return {'code': 200,
+                'body': json.dumps(req['kwargs']['foo'])}
+    app = web.app([('/:foo/stuff', {'get': handler})])
+    with web.test(app) as url:
+        rep = web.get_sync(url + '/something/stuff')
+        assert json.loads(rep['body']) == 'something', rep
+
 def test_url_args():
     @tornado.gen.coroutine
     def handler(req):
         yield tornado.gen.moment
         return {'code': 200,
-                'body': json.dumps({'foo': req['args']['foo']})}
-    app = web.app([('/:foo/stuff', {'get': handler})])
+                'body': json.dumps(req['args'])}
+    app = web.app([('/(.*)/(.*)', {'get': handler})])
     with web.test(app) as url:
         rep = web.get_sync(url + '/something/stuff')
-        assert json.loads(rep['body']) == {'foo': 'something'}, rep
-
+        assert json.loads(rep['body']) == ['something', 'stuff'], rep
 
 def test_validate():
     @tornado.gen.coroutine

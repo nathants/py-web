@@ -27,7 +27,8 @@ class schemas:
            'query': {str: (':U', str, [str])},
            'body': str,
            'headers': {str: (':U', str, int)},
-           'args': {str: str}}
+           'args': [str],
+           'kwargs': {str: str}}
 
     rep = {'code': (':O', int, 200),
            'reason': (':O', (':U', str, None), None),
@@ -45,8 +46,8 @@ def _try_decode(text):
 def _handler_function_to_tornado_handler_method(fn):
     name = util.func.name(fn)
     @tornado.gen.coroutine
-    def method(self, **args):
-        req = _tornado_req_to_dict(self.request, args)
+    def method(self, *a, **kw):
+        req = _tornado_req_to_dict(self.request, a, kw)
         try:
             rep = yield fn(req)
         except:
@@ -84,7 +85,7 @@ def _parse_query_string(query: str) -> schemas.req['query']:
 
 
 @schema.check
-def _tornado_req_to_dict(obj: HTTPServerRequest, args: {str: str}) -> schemas.req:
+def _tornado_req_to_dict(obj: HTTPServerRequest, a: [str], kw: {str: str}) -> schemas.req:
     body = _try_decode(obj.body)
     return {'verb': obj.method.lower(),
             'url': obj.uri,
@@ -92,7 +93,8 @@ def _tornado_req_to_dict(obj: HTTPServerRequest, args: {str: str}) -> schemas.re
             'query': _parse_query_string(obj.query),
             'body': body,
             'headers': dict(obj.headers),
-            'args': args}
+            'args': a,
+            'kwargs': kw}
 
 
 @schema.check
