@@ -21,6 +21,8 @@ from tornado.httputil import HTTPServerRequest
 
 
 class schemas:
+    # :U is union
+    # :O is optional
     req = {'verb': str,
            'url': str,
            'path': str,
