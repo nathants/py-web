@@ -35,7 +35,7 @@ class schemas:
     rep = {'code': (':O', int, 200),
            'reason': (':O', (':U', str, None), None),
            'headers': (':O', {str: str}, {}),
-           'body': (':O', str, '')}
+           'body': (':O', (':U', str, bytes), '')}
 
 
 def _try_decode(text):
