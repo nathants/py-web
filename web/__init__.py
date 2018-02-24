@@ -27,9 +27,10 @@ class schemas:
            'url': str,
            'path': str,
            'query': {str: (':U', str, [str])},
-           'body': str,
+           'body': (':U', str, bytes),
            'headers': {str: (':U', str, int)},
            'args': [str],
+           'files': {str: [{'body': bytes}]},
            'kwargs': {str: str}}
 
     rep = {'code': (':O', int, 200),
@@ -96,7 +97,8 @@ def _tornado_req_to_dict(obj: HTTPServerRequest, a: [str], kw: {str: str}) -> sc
             'body': body,
             'headers': dict(obj.headers),
             'args': a,
-            'kwargs': kw}
+            'kwargs': kw,
+            'files': obj.files}
 
 
 @schema.check
