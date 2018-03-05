@@ -10,12 +10,10 @@ a port of [ring](https://github.com/ring-clojure/ring/wiki) to [tornado](http://
 
 note: tested only on ubuntu
 
-```
-git clone https://github.com/nathants/py-web
-cd py-aws
-pip3 install -r requirements.txt
-pip3 install .
-```
+### installation
+
+`pip-3.6 install --process-dependency-links git+https://github.com/nathants/py-web@69930bc # or some other git hash`
+
 
 ## http example
 
