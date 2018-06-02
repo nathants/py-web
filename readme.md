@@ -4,20 +4,16 @@ http servers should be easier and simpler.
 
 ## what
 
-a port of [ring](https://github.com/ring-clojure/ring/wiki) to [tornado](http://www.tornadoweb.org/en/latest/) for python3.
+an http library wrapping [tornado](http://www.tornadoweb.org/en/latest/).
 
-## install
-
-note: tested only on ubuntu
-
-### installation
+### install
 
 `pip-3.6 install --process-dependency-links git+https://github.com/nathants/py-web@69930bc # or some other git hash`
 
 
 ## http example
 
-```
+```python
 #!/usr/bin/env python3.6
 import logging
 import tornado.gen
@@ -47,14 +43,14 @@ app.listen(8080)
 tornado.ioloop.IOLoop.current().start()
 ```
 
-```
+```bash
 $ curl localhost:8080/hello/world?size=3
 world size: 3
 ```
 
 ## https example
 
-```
+```python
 #!/usr/bin/env python3.6
 import logging
 import tornado.gen
@@ -92,7 +88,7 @@ app.listen(8080, ssl_options=options)
 tornado.ioloop.IOLoop.current().start()
 ```
 
-```
+```bash
 $ curl --cacert ssl.crt https://localhost:8080/hello/world?size=3
 world size: 3
 ```
