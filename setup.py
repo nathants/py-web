@@ -10,7 +10,7 @@ setuptools.setup(
     author_email='me@nathants.com',
     url='http://github.com/nathants/py-web',
     packages=['web'],
-    install_requires=['tornado==4.5.1',
+    install_requires=['tornado==5.0.2',
                       'py-util',
                       'py-schema',
                       'py-pool'],
