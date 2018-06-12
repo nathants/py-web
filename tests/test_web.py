@@ -10,7 +10,6 @@ import web
 def test_non_2XX_codes():
     @tornado.gen.coroutine
     def handler(req):
-        yield None
         1 / 0
 
     app = web.app([('/', {'get': handler})])
@@ -23,7 +22,6 @@ def test_non_2XX_codes():
 def test_normal_app():
     @tornado.gen.coroutine
     def handler(req):
-        yield None
         return {'body': 'asdf'}
     port = util.net.free_port()
     web.app([('/', {'get': handler})]).listen(port)
@@ -54,7 +52,6 @@ def test_get_timeout():
 def test_get():
     @tornado.gen.coroutine
     def handler(req):
-        yield None
         return {'body': 'ok',
                 'code': 200,
                 'headers': {'foo': 'bar'}}
@@ -74,7 +71,6 @@ def test_get():
 def test_get_params():
     @tornado.gen.coroutine
     def handler(req):
-        yield None
         return {'body': json.dumps(req['query'])}
 
     @tornado.gen.coroutine
@@ -90,7 +86,6 @@ def test_get_params():
 def test_post():
     @tornado.gen.coroutine
     def handler(req):
-        yield None
         body = json.loads(req['body'])
         return {'code': body['num'] + 1}
 
@@ -124,7 +119,6 @@ def test_post_timeout():
 def test_basic():
     @tornado.gen.coroutine
     def handler(req):
-        yield None
         assert req['verb'] == 'get'
         return {'headers': {'foo': 'bar'},
                 'code': 200,
@@ -148,7 +142,6 @@ def test_middleware():
     @middleware
     @tornado.gen.coroutine
     def handler(req):
-        yield None
         return {'headers': {'foo': 'bar'},
                 'code': 200,
                 'body': 'ok' + req['headers']['asdf']}
@@ -161,7 +154,6 @@ def test_middleware():
 def test_url_params():
     @tornado.gen.coroutine
     def handler(req):
-        yield None
         return {'code': 200,
                 'body': json.dumps(req['query'])}
     app = web.app([('/', {'get': handler})])
@@ -175,7 +167,6 @@ def test_url_params():
 def test_url_kwargs():
     @tornado.gen.coroutine
     def handler(req):
-        yield None
         return {'code': 200,
                 'body': json.dumps(req['kwargs']['foo'])}
     app = web.app([('/:foo/stuff', {'get': handler})])
@@ -186,7 +177,6 @@ def test_url_kwargs():
 def test_url_args():
     @tornado.gen.coroutine
     def handler(req):
-        yield None
         return {'code': 200,
                 'body': json.dumps(req['args'])}
     app = web.app([('/(.*)/(.*)', {'get': handler})])
@@ -197,7 +187,6 @@ def test_url_args():
 def test_validate():
     @tornado.gen.coroutine
     def handler(req):
-        yield None
         return {'code': 200,
                 'body': json.dumps(req['query'])}
     app = web.app([('/', {'get': handler})])

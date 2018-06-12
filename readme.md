@@ -8,7 +8,7 @@ an http library wrapping [tornado](http://www.tornadoweb.org/en/latest/).
 
 ### install
 
-`pip-3.6 install --process-dependency-links git+https://github.com/nathants/py-web@69930bc # or some other git hash`
+`pip-3.6 install --process-dependency-links git+https://github.com/nathants/py-web@<git-hash>`
 
 
 ## http example
@@ -24,14 +24,12 @@ logging.basicConfig(level='INFO')
 
 @tornado.gen.coroutine
 def handler(request):
-    yield None # must yield at least once
     size = request['query'].get('size', 0)
     token = request['kwargs']['token']
     return {'code': 200, 'body': f'{token} size: {size}'}
 
 @tornado.gen.coroutine
 def fallback_handler(request):
-    yield None # must yield at least once
     route = request['args'][0]
     return {'code': 200, 'body': f'no such route: /{route}, try: /hello/xyz?size=123'}
 
@@ -65,14 +63,12 @@ logging.basicConfig(level='INFO')
 
 @tornado.gen.coroutine
 def handler(request):
-    yield None # must yield at least once
     size = request['query'].get('size', 0)
     token = request['kwargs']['token']
     return {'code': 200, 'body': f'{token} size: {size}'}
 
 @tornado.gen.coroutine
 def fallback_handler(request):
-    yield None # must yield at least once
     route = request['args'][0]
     return {'code': 200, 'body': f'no such route: /{route}, try: /hello/XYZ'}
 
