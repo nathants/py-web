@@ -14,7 +14,7 @@ an http library wrapping [tornado](http://www.tornadoweb.org/en/latest/).
 ## http example
 
 ```python
-#!/usr/bin/env python3.6
+#!/usr/bin/env python3
 import logging
 import tornado.gen
 import tornado.ioloop
@@ -49,7 +49,7 @@ world size: 3
 ## https example
 
 ```python
-#!/usr/bin/env python3.6
+#!/usr/bin/env python3
 import logging
 import tornado.gen
 import tornado.ioloop
