@@ -19,7 +19,6 @@ from unittest import mock
 from tornado.web import RequestHandler
 from tornado.httputil import HTTPServerRequest
 
-
 class schemas:
     # :U is union, :O is optional
     req = {'verb': str,
@@ -37,13 +36,11 @@ class schemas:
            'headers': (':O', {str: str}, {}),
            'body': (':O', (':U', str, bytes), '')}
 
-
 def _try_decode(text):
     try:
         return text.decode('utf-8')
     except:
         return text
-
 
 def _handler_function_to_tornado_handler_method(fn):
     name = util.func.name(fn)
@@ -59,7 +56,6 @@ def _handler_function_to_tornado_handler_method(fn):
     method.fn = fn
     return method
 
-
 @schema.check
 def _verbs_dict_to_tornado_handler_class(**verbs: {str: callable}) -> type:
     class Handler(tornado.web.RequestHandler):
@@ -67,7 +63,6 @@ def _verbs_dict_to_tornado_handler_class(**verbs: {str: callable}) -> type:
             locals()[verb.lower()] = _handler_function_to_tornado_handler_method(fn)
         del verb, fn
     return Handler
-
 
 @schema.check
 def _update_handler_from_dict_rep(rep: schemas.rep, handler: RequestHandler) -> None:
@@ -77,14 +72,12 @@ def _update_handler_from_dict_rep(rep: schemas.rep, handler: RequestHandler) -> 
     for header, value in rep.get('headers', {}).items():
         handler.set_header(header, value)
 
-
 @schema.check
 def _parse_query_string(query: str) -> schemas.req['query']:
     parsed = urllib.parse.parse_qs(query, True)
     val = {k: v if len(v) > 1 else v.pop()
            for k, v in parsed.items()}
     return val
-
 
 @schema.check
 def _tornado_req_to_dict(obj: HTTPServerRequest, a: [str], kw: {str: str}) -> schemas.req:
@@ -99,14 +92,12 @@ def _tornado_req_to_dict(obj: HTTPServerRequest, a: [str], kw: {str: str}) -> sc
             'kwargs': kw,
             'files': obj.files}
 
-
 @schema.check
 def _parse_route_str(route: str) -> str:
     return '/'.join(['(?P<{}>.*)'.format(x[1:])
                      if x.startswith(':')
                      else x
                      for x in route.split('/')])
-
 
 @schema.check
 def app(routes: [(str, {str: callable})], debug: bool = False, **settings) -> tornado.web.Application:
@@ -127,7 +118,6 @@ def app(routes: [(str, {str: callable})], debug: bool = False, **settings) -> to
               for route, verbs in routes]
     return tornado.web.Application(routes, debug=debug, **settings)
 
-
 def wait_for_http(url, max_wait_seconds=5):
     start = time.time()
     while True:
@@ -137,7 +127,6 @@ def wait_for_http(url, max_wait_seconds=5):
             break
         except AssertionError:
             time.sleep(.01)
-
 
 @contextlib.contextmanager
 def test(app, poll='/', context=lambda: mock.patch.object(mock, '_fake_', create=True), use_thread=False):
@@ -162,10 +151,8 @@ def test(app, poll='/', context=lambda: mock.patch.object(mock, '_fake_', create
         if not use_thread:
             proc.terminate()
 
-
 with util.exceptions.ignore(ImportError):
     tornado.httpclient.AsyncHTTPClient.configure("tornado.curl_httpclient.CurlAsyncHTTPClient")
-
 
 class Blowup(Exception):
     def __init__(self, message, code, reason, body):
@@ -177,17 +164,14 @@ class Blowup(Exception):
     def __str__(self):
         return '{}, code={}, reason="{}"\n{}'.format(self.args[0] if self.args else '', self.code, self.reason, self.body)
 
-
 # TODO this should probably be an argument to something
 faux_app = None
-
 
 @tornado.gen.coroutine
 @schema.check
 def _fetch(verb: str, url: str, **kw: dict) -> schemas.rep:
     fetcher = _faux_fetch if faux_app else _real_fetch
     return (yield fetcher(verb, url, **kw))
-
 
 @tornado.gen.coroutine
 def _real_fetch(verb, url, **kw):
@@ -211,7 +195,6 @@ def _real_fetch(verb, url, **kw):
             'reason': rep.reason,
             'headers': {k.lower(): v for k, v in rep.headers.items()},
             'body': _try_decode(rep.body or b'')}
-
 
 @tornado.gen.coroutine
 def _faux_fetch(verb, url, **kw):
@@ -240,7 +223,6 @@ def _faux_fetch(verb, url, **kw):
                      rep.get('body', ''))
     return rep
 
-
 def _process_fetch_kwargs(url, kw):
     timeout = kw.pop('timeout', 10)
     blowup = kw.pop('blowup', False)
@@ -250,15 +232,12 @@ def _process_fetch_kwargs(url, kw):
                               for k, v in kw.pop('query').items())
     return url, timeout, blowup, kw
 
-
 def get(url, **kw):
     return _fetch('GET', url, **kw)
-
 
 # TODO support schema.check for pos/keyword args with default like body
 def post(url, body='', **kw):
     return _fetch('POST', url, body=body, **kw)
-
 
 def get_sync(url, **kw):
     @tornado.gen.coroutine
@@ -266,17 +245,14 @@ def get_sync(url, **kw):
         return (yield get(url, **kw))
     return tornado.ioloop.IOLoop.instance().run_sync(fn)
 
-
 def post_sync(url, data='', **kw):
     @tornado.gen.coroutine
     def fn():
         return (yield post(url, data, **kw))
     return tornado.ioloop.IOLoop.instance().run_sync(fn)
 
-
 class Timeout(Exception):
     pass
-
 
 @util.func.optionally_parameterized_decorator
 def validate(*args, **kwargs):

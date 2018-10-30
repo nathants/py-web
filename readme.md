@@ -8,7 +8,7 @@ an http library wrapping [tornado](http://www.tornadoweb.org/en/latest/).
 
 ### install
 
-`pip-3.6 install --process-dependency-links git+https://github.com/nathants/py-web@<git-hash>`
+`pip install --process-dependency-links git+https://github.com/nathants/py-web@<git-hash>`
 
 
 ## http example
