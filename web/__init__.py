@@ -6,7 +6,6 @@ import urllib
 import time
 import traceback
 import tornado.httpclient
-import tornado.httputil
 import tornado.web
 import util.data
 import util.exceptions
@@ -29,7 +28,8 @@ class schemas:
            'headers': {str: (':U', str, int)},
            'args': [str],
            'files': {str: [{'body': bytes}]},
-           'kwargs': {str: str}}
+           'kwargs': {str: str},
+           'remote': str}
 
     rep = {'code': (':O', int, 200),
            'reason': (':O', (':U', str, None), None),
@@ -90,7 +90,8 @@ def _tornado_req_to_dict(obj: HTTPServerRequest, a: [str], kw: {str: str}) -> sc
             'headers': dict(obj.headers),
             'args': a,
             'kwargs': kw,
-            'files': obj.files}
+            'files': obj.files,
+            'remote': obj.remote_ip}
 
 @schema.check
 def _parse_route_str(route: str) -> str:
@@ -202,7 +203,7 @@ def _faux_fetch(verb, url, **kw):
     query = kw.get('query', {})
     url, _, blowup, kw = _process_fetch_kwargs(url, kw)
     dispatcher = tornado.web._RequestDispatcher(faux_app, None)
-    dispatcher.set_request(tornado.httputil.HTTPServerRequest(method=verb, uri=url, **kw))
+    dispatcher.set_request(HTTPServerRequest(method=verb, uri=url, **kw))
     args = dispatcher.path_kwargs
     try:
         handler = getattr(dispatcher.handler_class, verb.lower()).fn
