@@ -7,9 +7,11 @@ http servers should be easier and simpler.
 an http library wrapping [tornado](http://www.tornadoweb.org/en/latest/).
 
 ### install
-
-`pip install --process-dependency-links git+https://github.com/nathants/py-web@<git-hash>`
-
+```
+git clone https://github.com/nathants/py-web
+cd py-web
+pip install -r requirements.txt .
+```
 
 ## http example
 
