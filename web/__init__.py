@@ -180,7 +180,7 @@ def _real_fetch(verb, url, **kw):
     kw['user_agent'] = kw.get('user_agent', "Mozilla/5.0 (compatible; pycurl)")
     req = tornado.httpclient.HTTPRequest(url, method=verb, **kw)
     future = tornado.concurrent.Future()
-    rep = tornado.httpclient.AsyncHTTPClient().fetch(req, callback=lambda x: future.set_result(x))
+    tornado.httpclient.AsyncHTTPClient().fetch(req, callback=lambda x: future.set_result(x))
     if timeout:
         tornado.ioloop.IOLoop.current().add_timeout(
             datetime.timedelta(seconds=timeout),

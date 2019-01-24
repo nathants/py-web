@@ -6,7 +6,6 @@ import util.net
 import pool.proc
 import web
 
-
 def test_non_2XX_codes():
     @tornado.gen.coroutine
     def handler(req):
@@ -18,7 +17,6 @@ def test_non_2XX_codes():
         assert '1 / 0' not in rep['body']
         assert rep['code'] == 500
 
-
 def test_normal_app():
     @tornado.gen.coroutine
     def handler(req):
@@ -29,7 +27,6 @@ def test_normal_app():
     url = 'http://0.0.0.0:{port}'.format(**locals())
     assert web.get_sync(url)['body'] == 'asdf'
     proc.terminate()
-
 
 def test_get_timeout():
     @tornado.gen.coroutine
@@ -47,7 +44,6 @@ def test_get_timeout():
     with web.test(app) as url:
         with pytest.raises(web.Timeout):
             tornado.ioloop.IOLoop.instance().run_sync(lambda: main(url))
-
 
 def test_get():
     @tornado.gen.coroutine
@@ -67,7 +63,6 @@ def test_get():
     with web.test(app) as url:
         tornado.ioloop.IOLoop.instance().run_sync(lambda: main(url))
 
-
 def test_get_params():
     @tornado.gen.coroutine
     def handler(req):
@@ -81,7 +76,6 @@ def test_get_params():
     app = web.app([('/', {'get': handler})])
     with web.test(app) as url:
         tornado.ioloop.IOLoop.instance().run_sync(lambda: main(url))
-
 
 def test_post():
     @tornado.gen.coroutine
@@ -97,7 +91,6 @@ def test_post():
     app = web.app([('/', {'post': handler})])
     with web.test(app) as url:
         tornado.ioloop.IOLoop.instance().run_sync(lambda: main(url))
-
 
 def test_post_timeout():
     @tornado.gen.coroutine
@@ -115,7 +108,6 @@ def test_post_timeout():
         with pytest.raises(web.Timeout):
             tornado.ioloop.IOLoop.instance().run_sync(lambda: main(url))
 
-
 def test_basic():
     @tornado.gen.coroutine
     def handler(req):
@@ -128,7 +120,6 @@ def test_basic():
         rep = web.get_sync(url)
         assert rep['body'] == 'ok'
         assert rep['headers']['foo'] == 'bar'
-
 
 def test_middleware():
     def middleware(old_handler):
@@ -150,7 +141,6 @@ def test_middleware():
         rep = web.get_sync(url)
         assert rep['body'] == 'ok [mod req] [mod rep]'
 
-
 def test_url_params():
     @tornado.gen.coroutine
     def handler(req):
@@ -162,7 +152,6 @@ def test_url_params():
         assert json.loads(rep['body']) == {'asdf': '123',
                                            'foo': ['bar', 'notbar'],
                                            'stuff': ''}
-
 
 def test_url_kwargs():
     @tornado.gen.coroutine
