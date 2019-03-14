@@ -13,6 +13,14 @@ cd py-web
 pip install -r requirements.txt .
 ```
 
+### for better performance, disable schemas
+
+```
+SCHEMA_DISABLE=y python server.py
+```
+
+note: if you define any additional schemas, you must not rely on optional value behavior if you disable schemas, instead use `dict.get()`
+
 ## http example
 
 ```python
