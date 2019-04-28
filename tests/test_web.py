@@ -10,7 +10,6 @@ def test_non_2XX_codes():
     @tornado.gen.coroutine
     def handler(req):
         1 / 0
-
     app = web.app([('/', {'get': handler})])
     with web.test(app) as url:
         rep = web.get_sync(url)
@@ -35,11 +34,9 @@ def test_get_timeout():
             yield tornado.gen.sleep(1)
         handler._sleep = True
         return {}
-
     @tornado.gen.coroutine
     def main(url):
         yield web.get(url + '?sleep', timeout=.001)
-
     app = web.app([('/', {'get': handler})])
     with web.test(app) as url:
         with pytest.raises(web.Timeout):
@@ -51,14 +48,12 @@ def test_get():
         return {'body': 'ok',
                 'code': 200,
                 'headers': {'foo': 'bar'}}
-
     @tornado.gen.coroutine
     def main(url):
         rep = yield web.get(url)
         assert rep['body'] == 'ok'
         assert rep['code'] == 200
         assert rep['headers']['foo'] == 'bar'
-
     app = web.app([('/', {'get': handler})])
     with web.test(app) as url:
         tornado.ioloop.IOLoop.instance().run_sync(lambda: main(url))
@@ -67,12 +62,10 @@ def test_get_params():
     @tornado.gen.coroutine
     def handler(req):
         return {'body': json.dumps(req['query'])}
-
     @tornado.gen.coroutine
     def main(url):
         rep = yield web.get(url, query={'foo': 'bar'})
         assert json.loads(rep['body']) == {'foo': 'bar'}
-
     app = web.app([('/', {'get': handler})])
     with web.test(app) as url:
         tornado.ioloop.IOLoop.instance().run_sync(lambda: main(url))
@@ -82,12 +75,10 @@ def test_post():
     def handler(req):
         body = json.loads(req['body'])
         return {'code': body['num'] + 1}
-
     @tornado.gen.coroutine
     def main(url):
         rep = yield web.post(url, json.dumps({'num': 200}))
         assert rep['code'] == 201
-
     app = web.app([('/', {'post': handler})])
     with web.test(app) as url:
         tornado.ioloop.IOLoop.instance().run_sync(lambda: main(url))
@@ -97,12 +88,10 @@ def test_post_timeout():
     def handler(req):
         yield tornado.gen.sleep(1)
         return {'code': 200}
-
     @tornado.gen.coroutine
     def main(url):
         rep = yield web.post(url, '', timeout=.001)
         assert rep['code'] == 201
-
     app = web.app([('/', {'post': handler})])
     with web.test(app) as url:
         with pytest.raises(web.Timeout):

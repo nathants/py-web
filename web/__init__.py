@@ -178,9 +178,7 @@ def _fetch(verb: str, url: str, **kw: dict) -> schemas.rep:
 def _real_fetch(verb, url, **kw):
     url, timeout, blowup, kw = _process_fetch_kwargs(url, kw)
     kw['user_agent'] = kw.get('user_agent', "Mozilla/5.0 (compatible; pycurl)")
-    req = tornado.httpclient.HTTPRequest(url, method=verb, **kw)
-    future = tornado.concurrent.Future()
-    tornado.httpclient.AsyncHTTPClient().fetch(req, callback=lambda x: future.set_result(x))
+    future = tornado.httpclient.AsyncHTTPClient().fetch(url, method=verb, raise_error=False, **kw)
     if timeout:
         tornado.ioloop.IOLoop.current().add_timeout(
             datetime.timedelta(seconds=timeout),
