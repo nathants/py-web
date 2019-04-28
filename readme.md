@@ -26,20 +26,17 @@ note: if you define any additional schemas, you must not rely on optional value 
 ```python
 #!/usr/bin/env python3
 import logging
-import tornado.gen
 import tornado.ioloop
 import web
 
 logging.basicConfig(level='INFO')
 
-@tornado.gen.coroutine
-def handler(request):
+async def handler(request):
     size = request['query'].get('size', 0)
     token = request['kwargs']['token']
     return {'code': 200, 'body': f'{token} size: {size}'}
 
-@tornado.gen.coroutine
-def fallback_handler(request):
+async def fallback_handler(request):
     route = request['args'][0]
     return {'code': 200, 'body': f'no such route: /{route}, try: /hello/xyz?size=123'}
 
@@ -61,7 +58,6 @@ world size: 3
 ```python
 #!/usr/bin/env python3
 import logging
-import tornado.gen
 import tornado.ioloop
 import web
 import ssl
@@ -71,14 +67,12 @@ check_call = lambda *a: subprocess.check_call(' '.join(map(str, a)), shell=True,
 
 logging.basicConfig(level='INFO')
 
-@tornado.gen.coroutine
-def handler(request):
+async def handler(request):
     size = request['query'].get('size', 0)
     token = request['kwargs']['token']
     return {'code': 200, 'body': f'{token} size: {size}'}
 
-@tornado.gen.coroutine
-def fallback_handler(request):
+async def fallback_handler(request):
     route = request['args'][0]
     return {'code': 200, 'body': f'no such route: /{route}, try: /hello/XYZ'}
 

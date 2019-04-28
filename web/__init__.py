@@ -19,22 +19,22 @@ from tornado.web import RequestHandler
 from tornado.httputil import HTTPServerRequest
 
 class schemas:
-    # :U is union, :O is optional
+    # :or is union, :optional is optional
     req = {'verb': str,
            'url': str,
            'path': str,
-           'query': {str: (':U', str, [str])},
-           'body': (':U', str, bytes),
-           'headers': {str: (':U', str, int)},
+           'query': {str: (':or', str, [str])},
+           'body': (':or', str, bytes),
+           'headers': {str: (':or', str, int)},
            'args': [str],
            'files': {str: [{'body': bytes}]},
            'kwargs': {str: str},
            'remote': str}
 
-    rep = {'code': (':O', int, 200),
-           'reason': (':O', (':U', str, None), None),
-           'headers': (':O', {str: str}, {}),
-           'body': (':O', (':U', str, bytes), '')}
+    rep = {'code': (':optional', int, 200),
+           'reason': (':optional', (':or', str, None), None),
+           'headers': (':optional', {str: str}, {}),
+           'body': (':optional', (':or', str, bytes), '')}
 
 def _try_decode(text):
     try:
@@ -44,11 +44,10 @@ def _try_decode(text):
 
 def _handler_function_to_tornado_handler_method(fn):
     name = util.func.name(fn)
-    @tornado.gen.coroutine
-    def method(self, *a, **kw):
+    async def method(self, *a, **kw):
         req = _tornado_req_to_dict(self.request, a, kw)
         try:
-            rep = yield fn(req)
+            rep = await fn(req)
         except:
             logging.exception('uncaught exception in: %s', name)
             rep = {'code': 500}
@@ -106,9 +105,7 @@ def app(routes: [(str, {str: callable})], debug: bool = False, **settings) -> to
     # a simple server
     import web
     import tornado.ioloop
-    import tornado.gen
-    @tornado.gen.coroutine
-    def handler(req):
+    async def handler(req):
         return {'body': 'hello world!'}
     handlers = [('/', {'get': handler})]
     web.app(handlers).listen(8001)
@@ -165,9 +162,8 @@ class Blowup(Exception):
     def __str__(self):
         return f'{self.args[0] if self.args else ""}, code={self.code}, reason="{self.reason}"\n{self.body}'
 
-@tornado.gen.coroutine
 @schema.check
-def _fetch(verb: str, url: str, **kw: dict) -> schemas.rep:
+async def _fetch(verb: str, url: str, **kw: dict) -> schemas.rep:
     url, timeout, blowup, kw = _process_fetch_kwargs(url, kw)
     kw['user_agent'] = kw.get('user_agent', "Mozilla/5.0 (compatible; pycurl)")
     future = tornado.httpclient.AsyncHTTPClient().fetch(url, method=verb, raise_error=False, **kw)
@@ -176,7 +172,7 @@ def _fetch(verb: str, url: str, **kw: dict) -> schemas.rep:
             datetime.timedelta(seconds=timeout),
             lambda: not future.done() and future.set_exception(Timeout())
         )
-    rep = yield future
+    rep = await future
     if blowup and rep.code != 200:
         raise Blowup(f'{verb} {url} did not return 200, returned {rep.code}',
                      rep.code,
@@ -204,15 +200,13 @@ def post(url, body='', **kw):
     return _fetch('POST', url, body=body, **kw)
 
 def get_sync(url, **kw):
-    @tornado.gen.coroutine
-    def fn():
-        return (yield get(url, **kw))
+    async def fn():
+        return (await get(url, **kw))
     return tornado.ioloop.IOLoop.instance().run_sync(fn)
 
 def post_sync(url, data='', **kw):
-    @tornado.gen.coroutine
-    def fn():
-        return (yield post(url, data, **kw))
+    async def fn():
+        return (await post(url, data, **kw))
     return tornado.ioloop.IOLoop.instance().run_sync(fn)
 
 class Timeout(Exception):
@@ -225,13 +219,12 @@ def validate(*args, **kwargs):
         request_schema = schema._get_schemas(decoratee, args, kwargs)['arg'][0]
         decoratee = schema.check(*args, **kwargs)(decoratee)
         @functools.wraps(decoratee)
-        @tornado.gen.coroutine
-        def decorated(req):
+        async def decorated(req):
             try:
                 schema._validate(request_schema, req)
             except schema.Error:
                 return {'code': 403, 'reason': 'your req is not valid', 'body': traceback.format_exc() + f'\nvalidation failed for: {name}'}
             else:
-                return (yield decoratee(req))
+                return (await decoratee(req))
         return decorated
     return decorator
