@@ -95,7 +95,7 @@ def _tornado_req_to_dict(obj: HTTPServerRequest, a: [str], kw: {str: str}) -> sc
 
 @schema.check
 def _parse_route_str(route: str) -> str:
-    return '/'.join(['(?P<{}>.*)'.format(x[1:])
+    return '/'.join([f'(?P<{x[1:]}>.*)'
                      if x.startswith(':')
                      else x
                      for x in route.split('/')])
@@ -132,7 +132,7 @@ def wait_for_http(url, max_wait_seconds=5):
 @contextlib.contextmanager
 def test(app, poll='/', context=lambda: mock.patch.object(mock, '_fake_', create=True), use_thread=False):
     port = util.net.free_port()
-    url = 'http://0.0.0.0:{}'.format(port)
+    url = f'http://0.0.0.0:{port}'
     def run():
         with context():
             if isinstance(app, tornado.web.Application):
@@ -163,7 +163,7 @@ class Blowup(Exception):
         self.body = _try_decode(body)
 
     def __str__(self):
-        return '{}, code={}, reason="{}"\n{}'.format(self.args[0] if self.args else '', self.code, self.reason, self.body)
+        return f'{self.args[0] if self.args else ""}, code={self.code}, reason="{self.reason}"\n{self.body}'
 
 @tornado.gen.coroutine
 @schema.check
@@ -178,7 +178,7 @@ def _fetch(verb: str, url: str, **kw: dict) -> schemas.rep:
         )
     rep = yield future
     if blowup and rep.code != 200:
-        raise Blowup('{verb} {url} did not return 200, returned {code}'.format(code=rep.code, **locals()),
+        raise Blowup(f'{verb} {url} did not return 200, returned {rep.code}',
                      rep.code,
                      rep.reason,
                      rep.body)
@@ -191,8 +191,8 @@ def _process_fetch_kwargs(url, kw):
     timeout = kw.pop('timeout', 10)
     blowup = kw.pop('blowup', False)
     if 'query' in kw:
-        assert '?' not in url, 'you cannot user keyword arg query and have ? already in the url: {url}'.format(**locals())
-        url += '?' + '&'.join('{}={}'.format(k, tornado.escape.url_escape(v))
+        assert '?' not in url, f'you cannot user keyword arg query and have ? already in the url: {url}'
+        url += '?' + '&'.join(f'{k}={tornado.escape.url_escape(v)}'
                               for k, v in kw.pop('query').items())
     return url, timeout, blowup, kw
 
@@ -230,7 +230,7 @@ def validate(*args, **kwargs):
             try:
                 schema._validate(request_schema, req)
             except schema.Error:
-                return {'code': 403, 'reason': 'your req is not valid', 'body': traceback.format_exc() + '\nvalidation failed for: {}'.format(name)}
+                return {'code': 403, 'reason': 'your req is not valid', 'body': traceback.format_exc() + f'\nvalidation failed for: {name}'}
             else:
                 return (yield decoratee(req))
         return decorated

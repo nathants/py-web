@@ -23,7 +23,7 @@ def test_normal_app():
     port = util.net.free_port()
     web.app([('/', {'get': handler})]).listen(port)
     proc = pool.proc.new(tornado.ioloop.IOLoop.current().start)
-    url = 'http://0.0.0.0:{port}'.format(**locals())
+    url = f'http://0.0.0.0:{port}'
     assert web.get_sync(url)['body'] == 'asdf'
     proc.terminate()
 
