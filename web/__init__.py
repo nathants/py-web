@@ -165,17 +165,9 @@ class Blowup(Exception):
     def __str__(self):
         return '{}, code={}, reason="{}"\n{}'.format(self.args[0] if self.args else '', self.code, self.reason, self.body)
 
-# TODO this should probably be an argument to something
-faux_app = None
-
 @tornado.gen.coroutine
 @schema.check
 def _fetch(verb: str, url: str, **kw: dict) -> schemas.rep:
-    fetcher = _faux_fetch if faux_app else _real_fetch
-    return (yield fetcher(verb, url, **kw))
-
-@tornado.gen.coroutine
-def _real_fetch(verb, url, **kw):
     url, timeout, blowup, kw = _process_fetch_kwargs(url, kw)
     kw['user_agent'] = kw.get('user_agent', "Mozilla/5.0 (compatible; pycurl)")
     future = tornado.httpclient.AsyncHTTPClient().fetch(url, method=verb, raise_error=False, **kw)
@@ -194,33 +186,6 @@ def _real_fetch(verb, url, **kw):
             'reason': rep.reason,
             'headers': {k.lower(): v for k, v in rep.headers.items()},
             'body': _try_decode(rep.body or b'')}
-
-@tornado.gen.coroutine
-def _faux_fetch(verb, url, **kw):
-    assert isinstance(faux_app, tornado.web.Application)
-    query = kw.get('query', {})
-    url, _, blowup, kw = _process_fetch_kwargs(url, kw)
-    dispatcher = tornado.web._RequestDispatcher(faux_app, None)
-    dispatcher.set_request(HTTPServerRequest(method=verb, uri=url, **kw))
-    args = dispatcher.path_kwargs
-    try:
-        handler = getattr(dispatcher.handler_class, verb.lower()).fn
-    except AttributeError:
-        raise Exception('no route matched: {verb} {url}'.format(**locals())) from None
-    req = {'verb': verb,
-           'url': url,
-           'path': '/' + url.split('://')[-1].split('/', 1)[-2],
-           'query': query,
-           'body': _try_decode(kw.get('body', b'')),
-           'headers': kw.get('headers', {}),
-           'args': {k: _try_decode(v) for k, v in args.items()}}
-    rep = (yield handler(req))
-    if blowup and rep.get('code', 200) != 200:
-        raise Blowup('{verb} {url} did not return 200, returned {code}'.format(code=rep['code'], **locals()),
-                     rep['code'],
-                     rep.get('reason', ''),
-                     rep.get('body', ''))
-    return rep
 
 def _process_fetch_kwargs(url, kw):
     timeout = kw.pop('timeout', 10)
