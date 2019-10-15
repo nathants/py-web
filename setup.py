@@ -5,7 +5,7 @@ setuptools.setup(
     license='mit',
     name='py-web',
     author='nathan todd-stone',
-    python_requires='>=3.7',
+    python_requires='>=3.6',
     author_email='me@nathants.com',
     url='http://github.com/nathants/py-web',
     packages=['web'],
