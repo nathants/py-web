@@ -44,7 +44,9 @@ routes = [('/hello/:token', {'get': handler}),
           ('/(.*)',         {'get': fallback_handler})]
 
 app = web.app(routes)
-app.listen(8080)
+server = tornado.httpserver.HTTPServer(app)
+server.bind(8080)
+server.start(0)
 tornado.ioloop.IOLoop.current().start()
 ```
 
@@ -84,7 +86,9 @@ routes = [('/hello/:token', {'get': handler}),
           ('/(.*)',         {'get': fallback_handler})]
 
 app = web.app(routes)
-app.listen(8080, ssl_options=options)
+server = tornado.httpserver.HTTPServer(app, ssl_options=options)
+server.bind(8080)
+server.start(0)
 tornado.ioloop.IOLoop.current().start()
 ```
 
