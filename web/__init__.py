@@ -1,4 +1,5 @@
 import contextlib
+import itertools
 import datetime
 import random
 import functools
@@ -32,10 +33,10 @@ class schemas:
            'kwargs': {str: str},
            'remote': str}
 
-    rep = {'code': (':optional', int, 200),
-           'reason': (':optional', (':or', str, None), None),
-           'headers': (':optional', {str: str}, {}),
-           'body': (':optional', (':or', str, bytes), '')}
+    resp = {'code': (':optional', int, 200),
+            'reason': (':optional', (':or', str, None), None),
+            'headers': (':optional', {str: str}, {}),
+            'body': (':optional', (':or', str, bytes), '')}
 
 def _try_decode(text):
     try:
@@ -48,11 +49,11 @@ def _handler_function_to_tornado_handler_method(fn):
     async def method(self, *a, **kw):
         req = _tornado_req_to_dict(self.request, a, kw)
         try:
-            rep = await fn(req)
+            resp = await fn(req)
         except:
             logging.exception('uncaught exception in: %s', name)
-            rep = {'code': 500}
-        _update_handler_from_dict_rep(rep, self)
+            resp = {'code': 500}
+        _update_handler_from_dict_resp(resp, self)
     method.fn = fn
     return method
 
@@ -65,11 +66,11 @@ def _verbs_dict_to_tornado_handler_class(**verbs: {str: callable}) -> type:
     return Handler
 
 @schema.check
-def _update_handler_from_dict_rep(rep: schemas.rep, handler: RequestHandler) -> None:
-    body = rep.get('body', '')
+def _update_handler_from_dict_resp(resp: schemas.resp, handler: RequestHandler) -> None:
+    body = resp.get('body', '')
     handler.write(body)
-    handler.set_status(rep.get('code', 200), rep.get('reason', ''))
-    for header, value in rep.get('headers', {}).items():
+    handler.set_status(resp.get('code', 200), resp.get('reason', ''))
+    for header, value in resp.get('headers', {}).items():
         handler.set_header(header, value)
 
 @schema.check
@@ -87,7 +88,7 @@ def _tornado_req_to_dict(obj: HTTPServerRequest, a: [str], kw: {str: str}) -> sc
             'path': obj.path,
             'query': _parse_query_string(obj.query),
             'body': body,
-            'headers': dict(obj.headers),
+            'headers': {k.lower(): v for k, v in dict(obj.headers).items()},
             'args': a,
             'kwargs': kw,
             'files': obj.files,
@@ -102,16 +103,6 @@ def _parse_route_str(route: str) -> str:
 
 @schema.check
 def app(routes: [(str, {str: callable})], debug: bool = False, **settings) -> tornado.web.Application:
-    """
-    # a simple server
-    import web
-    import tornado.ioloop
-    async def handler(req):
-        return {'body': 'hello world!'}
-    handlers = [('/', {'get': handler})]
-    web.app(handlers).listen(8001)
-    tornado.ioloop.IOLoop.instance().start()
-    """
     routes = [(_parse_route_str(route),
                _verbs_dict_to_tornado_handler_class(**verbs))
               for route, verbs in routes]
@@ -119,13 +110,13 @@ def app(routes: [(str, {str: callable})], debug: bool = False, **settings) -> to
 
 def wait_for_http(url, max_wait_seconds=5):
     start = time.time()
-    while True:
+    for i in itertools.count(1):
         assert time.time() - start < max_wait_seconds, 'timed out'
         try:
             assert get_sync(url)['code'] != 599
             break
         except (ConnectionRefusedError, AssertionError):
-            time.sleep(.1 * random.random())
+            time.sleep(.01 * 1)
 
 @contextlib.contextmanager
 def test(app, poll='/', context=lambda: mock.patch.object(mock, '_fake_', create=True), use_thread=False):
@@ -164,7 +155,7 @@ class Blowup(Exception):
         return f'{self.args[0] if self.args else ""}, code={self.code}, reason="{self.reason}"\n{self.body}'
 
 @schema.check
-async def _fetch(verb: str, url: str, **kw: dict) -> schemas.rep:
+async def _fetch(verb: str, url: str, **kw: dict) -> schemas.resp:
     url, timeout, blowup, kw = _process_fetch_kwargs(url, kw)
     kw['user_agent'] = kw.get('user_agent', "Mozilla/5.0 (compatible; pycurl)")
     future = tornado.httpclient.AsyncHTTPClient().fetch(url, method=verb, raise_error=False, **kw)
@@ -173,16 +164,16 @@ async def _fetch(verb: str, url: str, **kw: dict) -> schemas.rep:
             datetime.timedelta(seconds=timeout),
             lambda: not future.done() and future.set_exception(Timeout())
         )
-    rep = await future
-    if blowup and rep.code != 200:
-        raise Blowup(f'{verb} {url} did not return 200, returned {rep.code}',
-                     rep.code,
-                     rep.reason,
-                     rep.body)
-    return {'code': rep.code,
-            'reason': rep.reason,
-            'headers': {k.lower(): v for k, v in rep.headers.items()},
-            'body': _try_decode(rep.body or b'')}
+    resp = await future
+    if blowup and resp.code != 200:
+        raise Blowup(f'{verb} {url} did not return 200, returned {resp.code}',
+                     resp.code,
+                     resp.reason,
+                     resp.body)
+    return {'code': resp.code,
+            'reason': resp.reason,
+            'headers': {k.lower(): v for k, v in resp.headers.items()},
+            'body': _try_decode(resp.body or b'')}
 
 def _process_fetch_kwargs(url, kw):
     timeout = kw.pop('timeout', 10)
