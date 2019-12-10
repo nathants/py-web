@@ -1,5 +1,6 @@
 import contextlib
 import datetime
+import random
 import functools
 import logging
 import urllib
@@ -123,8 +124,8 @@ def wait_for_http(url, max_wait_seconds=5):
         try:
             assert get_sync(url)['code'] != 599
             break
-        except AssertionError:
-            time.sleep(.01)
+        except (ConnectionRefusedError, AssertionError):
+            time.sleep(.1 * random.random())
 
 @contextlib.contextmanager
 def test(app, poll='/', context=lambda: mock.patch.object(mock, '_fake_', create=True), use_thread=False):
