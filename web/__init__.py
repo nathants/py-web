@@ -1,23 +1,24 @@
 import contextlib
-import itertools
 import datetime
-import random
 import functools
+import itertools
 import logging
-import urllib
-import time
-import traceback
-import tornado.httpclient
-import tornado.web
-import util.data
-import util.exceptions
-import util.func
-import util.net
 import pool.proc
 import pool.thread
 import schema
+import time
+import tornado.httpclient
+import tornado.web
+import traceback
+import urllib
+import util.data
+import util.log
+import util.exceptions
+import util.func
+import util.net
 from unittest import mock
-from tornado.web import RequestHandler
+from tornado.ioloop import IOLoop
+from tornado.web import RequestHandler, Application
 from tornado.httputil import HTTPServerRequest
 
 class schemas:
@@ -58,12 +59,15 @@ def _handler_function_to_tornado_handler_method(fn):
     return method
 
 @schema.check
-def _verbs_dict_to_tornado_handler_class(**verbs: {str: callable}) -> type:
-    class Handler(tornado.web.RequestHandler):
-        for verb, fn in verbs.items():
-            locals()[verb.lower()] = _handler_function_to_tornado_handler_method(fn)
-        del verb, fn
-    return Handler
+def _verbs_dict_to_tornado_handler_class(verbs_or_handler: (':or', {str: callable}, type(RequestHandler))) -> type:
+    if type(verbs_or_handler) is type(RequestHandler):
+        return verbs_or_handler
+    else:
+        class Handler(RequestHandler):
+            for verb, fn in verbs_or_handler.items():
+                locals()[verb.lower()] = _handler_function_to_tornado_handler_method(fn)
+            del verb, fn
+        return Handler
 
 @schema.check
 def _update_handler_from_dict_resp(resp: schemas.resp, handler: RequestHandler) -> None:
@@ -102,11 +106,11 @@ def _parse_route_str(route: str) -> str:
                      for x in route.split('/')])
 
 @schema.check
-def app(routes: [(str, {str: callable})], debug: bool = False, **settings) -> tornado.web.Application:
+def app(routes: [(str, (':or', type(RequestHandler), {str: callable}))], debug: bool = False, **settings) -> Application:
     routes = [(_parse_route_str(route),
-               _verbs_dict_to_tornado_handler_class(**verbs))
+               _verbs_dict_to_tornado_handler_class(verbs))
               for route, verbs in routes]
-    return tornado.web.Application(routes, debug=debug, **settings)
+    return Application(routes, debug=debug, **settings)
 
 def wait_for_http(url, max_wait_seconds=5):
     start = time.time()
@@ -124,12 +128,13 @@ def test(app, poll='/', context=lambda: mock.patch.object(mock, '_fake_', create
     url = f'http://0.0.0.0:{port}'
     def run():
         with context():
-            if isinstance(app, tornado.web.Application):
+            util.log.setup()
+            if isinstance(app, Application):
                 app.listen(port)
             else:
                 app().listen(port)
             if not use_thread:
-                tornado.ioloop.IOLoop.current().start()
+                IOLoop.current().start()
     proc = (pool.thread.new if use_thread else pool.proc.new)(run)
     if poll:
         wait_for_http(url + poll)
@@ -160,7 +165,7 @@ async def _fetch(verb: str, url: str, **kw: dict) -> schemas.resp:
     kw['user_agent'] = kw.get('user_agent', "Mozilla/5.0 (compatible; pycurl)")
     future = tornado.httpclient.AsyncHTTPClient().fetch(url, method=verb, raise_error=False, **kw)
     if timeout:
-        tornado.ioloop.IOLoop.current().add_timeout(
+        IOLoop.current().add_timeout(
             datetime.timedelta(seconds=timeout),
             lambda: not future.done() and future.set_exception(Timeout())
         )
@@ -194,12 +199,12 @@ def post(url, body='', **kw):
 def get_sync(url, **kw):
     async def fn():
         return (await get(url, **kw))
-    return tornado.ioloop.IOLoop.instance().run_sync(fn)
+    return IOLoop.instance().run_sync(fn)
 
 def post_sync(url, data='', **kw):
     async def fn():
         return (await post(url, data, **kw))
-    return tornado.ioloop.IOLoop.instance().run_sync(fn)
+    return IOLoop.instance().run_sync(fn)
 
 class Timeout(Exception):
     pass

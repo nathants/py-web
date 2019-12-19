@@ -1,9 +1,12 @@
+import requests
+import io
 import json
 import pytest
 import tornado.ioloop
 import util.net
 import pool.proc
 import web
+from tornado.web import RequestHandler, stream_request_body
 
 def test_non_2XX_codes():
     async def handler(req):
@@ -72,6 +75,71 @@ def test_post():
     with web.test(app) as url:
         tornado.ioloop.IOLoop.instance().run_sync(lambda: main(url))
 
+def test_post_files():
+    async def handler(req):
+        for file, parts in req['files'].items():
+            for part in parts:
+                part['body'] = part['body'].decode('utf-8')
+        return {'body': json.dumps(req['files'])}
+    app = web.app([('/', {'post': handler})])
+    with web.test(app) as url:
+        resp = requests.post(url)
+        assert resp.status_code == 200
+        assert resp.json() == {}
+        resp = requests.post(url, files={'test_file': io.StringIO('asdf')})
+        assert resp.status_code == 200
+        assert resp.json() == {'test_file': [{'body': 'asdf',
+                                              'content_type': 'application/unknown',
+                                              'filename': 'test_file'}]}
+        resp = requests.post(url, files={'test_file': 'asdf'})
+        assert resp.status_code == 200
+        assert resp.json() == {'test_file': [{'body': 'asdf',
+                                              'content_type': 'application/unknown',
+                                              'filename': 'test_file'}]}
+        resp = requests.post(url, files={'test_file': ('file.txt', 'asdf', 'application/text')})
+        assert resp.status_code == 200
+        assert resp.json() == {'test_file': [{'body': 'asdf',
+                                              'content_type': 'application/text',
+                                              'filename': 'file.txt'}]}
+
+def test_tornado_handler_passthrough():
+    class Handler(RequestHandler):
+        async def post(self):
+            self.write('hi')
+    async def main(url):
+        resp = await web.post(url, '')
+        assert resp['body'] == 'hi'
+    app = web.app([('/', Handler)])
+    with web.test(app) as url:
+        tornado.ioloop.IOLoop.instance().run_sync(lambda: main(url))
+
+def test_tornado_handler_passthrough():
+    class Handler(RequestHandler):
+        async def post(self):
+            self.write('hi')
+    async def main(url):
+        resp = await web.post(url, '')
+        assert resp['body'] == 'hi'
+    app = web.app([('/', Handler)])
+    with web.test(app) as url:
+        tornado.ioloop.IOLoop.instance().run_sync(lambda: main(url))
+
+def test_tornado_handler_passthrough_streaming():
+    @stream_request_body
+    class Handler(RequestHandler):
+        def initialize(self):
+            self.bytes_read = 0
+        def data_received(self, chunk):
+            self.bytes_read += len(chunk)
+        def post(self):
+            self.write(f'{self.bytes_read}')
+    async def main(url):
+        resp = await web.post(url, 'asdf')
+        assert resp['body'] == '4'
+    app = web.app([('/', Handler)])
+    with web.test(app) as url:
+        tornado.ioloop.IOLoop.instance().run_sync(lambda: main(url))
+
 def test_post_timeout():
     async def handler(req):
         await tornado.gen.sleep(1)
@@ -122,8 +190,8 @@ def test_url_params():
     with web.test(app) as url:
         resp = web.get_sync(url + '/?asdf=123&foo=bar&foo=notbar&stuff')
         assert json.loads(resp['body']) == {'asdf': '123',
-                                           'foo': ['bar', 'notbar'],
-                                           'stuff': ''}
+                                            'foo': ['bar', 'notbar'],
+                                            'stuff': ''}
 
 def test_url_kwargs():
     async def handler(req):
