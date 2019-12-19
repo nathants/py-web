@@ -29,7 +29,7 @@ class schemas:
            'body': (':or', str, bytes),
            'headers': {str: (':or', str, int)},
            'args': [str],
-           'files': {str: [{'body': bytes}]},
+           'files': {str: [{'body': bytes, 'content_type': str, 'filename': str}]},
            'kwargs': {str: str},
            'remote': str}
 
