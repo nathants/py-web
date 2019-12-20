@@ -13,9 +13,9 @@ def test_non_2XX_codes():
         1 / 0
     app = web.app([('/', {'get': handler})])
     with web.test(app) as url:
-        resp = web.get_sync(url)
-        assert '1 / 0' not in resp['body']
-        assert resp['code'] == 500
+        resp = requests.get(url)
+        assert '1 / 0' not in resp.text
+        assert resp.status_code == 500
 
 def test_normal_app():
     async def handler(req):
@@ -23,9 +23,11 @@ def test_normal_app():
     port = util.net.free_port()
     web.app([('/', {'get': handler})]).listen(port)
     proc = pool.proc.new(tornado.ioloop.IOLoop.current().start)
-    url = f'http://0.0.0.0:{port}'
-    assert web.get_sync(url)['body'] == 'asdf'
-    proc.terminate()
+    try:
+        url = f'http://0.0.0.0:{port}'
+        assert requests.get(url).text == 'asdf'
+    finally:
+        proc.terminate()
 
 def test_get_timeout():
     async def handler(req):
@@ -113,17 +115,6 @@ def test_tornado_handler_passthrough():
     with web.test(app) as url:
         tornado.ioloop.IOLoop.instance().run_sync(lambda: main(url))
 
-def test_tornado_handler_passthrough():
-    class Handler(RequestHandler):
-        async def post(self):
-            self.write('hi')
-    async def main(url):
-        resp = await web.post(url, '')
-        assert resp['body'] == 'hi'
-    app = web.app([('/', Handler)])
-    with web.test(app) as url:
-        tornado.ioloop.IOLoop.instance().run_sync(lambda: main(url))
-
 def test_tornado_handler_passthrough_streaming():
     @stream_request_body
     class Handler(RequestHandler):
@@ -160,9 +151,9 @@ def test_basic():
                 'body': 'ok'}
     app = web.app([('/', {'get': handler})])
     with web.test(app) as url:
-        resp = web.get_sync(url)
-        assert resp['body'] == 'ok'
-        assert resp['headers']['foo'] == 'bar'
+        resp = requests.get(url)
+        assert resp.text == 'ok'
+        assert resp.headers['foo'] == 'bar'
 
 def test_middleware():
     def middleware(old_handler):
@@ -179,8 +170,8 @@ def test_middleware():
                 'body': 'ok' + req['headers']['asdf']}
     app = web.app([('/', {'get': handler})])
     with web.test(app) as url:
-        resp = web.get_sync(url)
-        assert resp['body'] == 'ok [mod req] [mod resp]'
+        resp = requests.get(url)
+        assert resp.text == 'ok [mod req] [mod resp]'
 
 def test_url_params():
     async def handler(req):
@@ -188,10 +179,10 @@ def test_url_params():
                 'body': json.dumps(req['query'])}
     app = web.app([('/', {'get': handler})])
     with web.test(app) as url:
-        resp = web.get_sync(url + '/?asdf=123&foo=bar&foo=notbar&stuff')
-        assert json.loads(resp['body']) == {'asdf': '123',
-                                            'foo': ['bar', 'notbar'],
-                                            'stuff': ''}
+        resp = requests.get(url + '/?asdf=123&foo=bar&foo=notbar&stuff')
+        assert json.loads(resp.text) == {'asdf': '123',
+                                         'foo': ['bar', 'notbar'],
+                                         'stuff': ''}
 
 def test_url_kwargs():
     async def handler(req):
@@ -199,8 +190,8 @@ def test_url_kwargs():
                 'body': json.dumps(req['kwargs']['foo'])}
     app = web.app([('/:foo/stuff', {'get': handler})])
     with web.test(app) as url:
-        resp = web.get_sync(url + '/something/stuff')
-        assert json.loads(resp['body']) == 'something', resp
+        resp = requests.get(url + '/something/stuff')
+        assert json.loads(resp.text) == 'something', resp
 
 def test_url_args():
     async def handler(req):
@@ -208,8 +199,8 @@ def test_url_args():
                 'body': json.dumps(req['args'])}
     app = web.app([('/(.*)/(.*)', {'get': handler})])
     with web.test(app) as url:
-        resp = web.get_sync(url + '/something/stuff')
-        assert json.loads(resp['body']) == ['something', 'stuff'], resp
+        resp = requests.get(url + '/something/stuff')
+        assert json.loads(resp.text) == ['something', 'stuff'], resp
 
 def test_validate():
     async def handler(req):
@@ -217,7 +208,7 @@ def test_validate():
                 'body': json.dumps(req['query'])}
     app = web.app([('/', {'get': handler})])
     with web.test(app) as url:
-        resp = web.get_sync(url + '/?asdf=123&foo=bar&foo=notbar&stuff')
-        assert json.loads(resp['body']) == {'asdf': '123',
-                                           'foo': ['bar', 'notbar'],
-                                           'stuff': ''}
+        resp = requests.get(url + '/?asdf=123&foo=bar&foo=notbar&stuff')
+        assert json.loads(resp.text) == {'asdf': '123',
+                                         'foo': ['bar', 'notbar'],
+                                         'stuff': ''}

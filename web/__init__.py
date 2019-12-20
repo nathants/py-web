@@ -5,6 +5,8 @@ import itertools
 import logging
 import pool.proc
 import pool.thread
+import requests
+import requests.exceptions
 import schema
 import time
 import tornado.httpclient
@@ -12,9 +14,9 @@ import tornado.web
 import traceback
 import urllib
 import util.data
-import util.log
 import util.exceptions
 import util.func
+import util.log
 import util.net
 from unittest import mock
 from tornado.ioloop import IOLoop
@@ -117,9 +119,9 @@ def wait_for_http(url, max_wait_seconds=5):
     for i in itertools.count(1):
         assert time.time() - start < max_wait_seconds, 'timed out'
         try:
-            assert get_sync(url)['code'] != 599
+            assert requests.get(url).status_code != 599
             break
-        except (ConnectionRefusedError, AssertionError):
+        except requests.exceptions.ConnectionError:
             time.sleep(.01 * 1)
 
 @contextlib.contextmanager
@@ -195,16 +197,6 @@ def get(url, **kw):
 # TODO support schema.check for pos/keyword args with default like body
 def post(url, body='', **kw):
     return _fetch('POST', url, body=body, **kw)
-
-def get_sync(url, **kw):
-    async def fn():
-        return (await get(url, **kw))
-    return IOLoop.instance().run_sync(fn)
-
-def post_sync(url, data='', **kw):
-    async def fn():
-        return (await post(url, data, **kw))
-    return IOLoop.instance().run_sync(fn)
 
 class Timeout(Exception):
     pass
