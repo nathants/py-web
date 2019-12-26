@@ -5,8 +5,6 @@ import itertools
 import logging
 import pool.proc
 import pool.thread
-import requests
-import requests.exceptions
 import schema
 import time
 import tornado.httpclient
@@ -115,6 +113,8 @@ def app(routes: [(str, (':or', type(RequestHandler), {str: callable}))], debug: 
     return Application(routes, debug=debug, **settings)
 
 def wait_for_http(url, max_wait_seconds=5):
+    import requests
+    import requests.exceptions
     start = time.time()
     for i in itertools.count(1):
         assert time.time() - start < max_wait_seconds, 'timed out'
