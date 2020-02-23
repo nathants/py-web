@@ -1,3 +1,4 @@
+import collections
 import contextlib
 import datetime
 import functools
@@ -85,19 +86,24 @@ def _parse_query_string(query: str) -> schemas.req['query']:
            for k, v in parsed.items()}
     return val
 
+def _tree():
+    return collections.defaultdict(_tree)
+
 @schema.check
 def _tornado_req_to_dict(obj: HTTPServerRequest, a: [str], kw: {str: str}) -> schemas.req:
     body = _try_decode(obj.body)
-    return {'verb': obj.method.lower(),
-            'url': obj.uri,
-            'path': obj.path,
-            'query': _parse_query_string(obj.query),
-            'body': body,
-            'headers': {k.lower(): v for k, v in dict(obj.headers).items()},
-            'args': a,
-            'kwargs': kw,
-            'files': obj.files,
-            'remote': obj.remote_ip}
+    return collections.defaultdict(_tree, {
+        'verb': obj.method.lower(),
+        'url': obj.uri,
+        'path': obj.path,
+        'query': _parse_query_string(obj.query),
+        'body': body,
+        'headers': {k.lower(): v for k, v in dict(obj.headers).items()},
+        'args': a,
+        'kwargs': kw,
+        'files': obj.files,
+        'remote': obj.remote_ip,
+    })
 
 @schema.check
 def _parse_route_str(route: str) -> str:
