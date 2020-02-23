@@ -72,7 +72,7 @@ def _verbs_dict_to_tornado_handler_class(verbs_or_handler: (':or', {str: callabl
 
 @schema.check
 def _update_handler_from_dict_resp(resp: schemas.resp, handler: RequestHandler) -> None:
-    body = resp.get('body', None)
+    body = resp.get('body')
     if body:
         handler.write(body)
     handler.set_status(resp.get('code', 200), resp.get('reason', ''))
