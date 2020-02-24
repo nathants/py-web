@@ -207,20 +207,3 @@ def post(url, body='', **kw):
 
 class Timeout(Exception):
     pass
-
-@util.func.optionally_parameterized_decorator
-def validate(*args, **kwargs):
-    def decorator(decoratee):
-        name = util.func.name(decoratee)
-        request_schema = schema._get_schemas(decoratee, args, kwargs)['arg'][0]
-        decoratee = schema.check(*args, **kwargs)(decoratee)
-        @functools.wraps(decoratee)
-        async def decorated(req):
-            try:
-                schema._validate(request_schema, req)
-            except schema.Error:
-                return {'code': 403, 'reason': 'your req is not valid', 'body': traceback.format_exc() + f'\nvalidation failed for: {name}'}
-            else:
-                return (await decoratee(req))
-        return decorated
-    return decorator

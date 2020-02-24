@@ -201,14 +201,3 @@ def test_url_args():
     with web.test(app) as url:
         resp = requests.get(url + '/something/stuff')
         assert json.loads(resp.text) == ['something', 'stuff'], resp
-
-def test_validate():
-    async def handler(req):
-        return {'code': 200,
-                'body': json.dumps(req['query'])}
-    app = web.app([('/', {'get': handler})])
-    with web.test(app) as url:
-        resp = requests.get(url + '/?asdf=123&foo=bar&foo=notbar&stuff')
-        assert json.loads(resp.text) == {'asdf': '123',
-                                         'foo': ['bar', 'notbar'],
-                                         'stuff': ''}
