@@ -4,6 +4,7 @@ import json
 import pytest
 import tornado.ioloop
 import util.net
+import util.dicts
 import pool.proc
 import web
 from tornado.web import RequestHandler, stream_request_body

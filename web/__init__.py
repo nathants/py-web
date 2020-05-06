@@ -6,11 +6,9 @@ import itertools
 import logging
 import pool.proc
 import pool.thread
-import schema
 import time
 import tornado.httpclient
 import tornado.web
-import traceback
 import urllib
 import util.data
 import util.exceptions
@@ -22,8 +20,17 @@ from tornado.ioloop import IOLoop
 from tornado.web import RequestHandler, Application
 from tornado.httputil import HTTPServerRequest
 
+try:
+    import schema
+except ImportError:
+    class schema:
+        def check(fn):
+            return fn
+
 class schemas:
-    # :or is union, :optional is optional
+    # optional dependency to check schemas at runtime: pip install git+https://github.com/nathants/py-schema@c2f9a0e8404f23d640b3037689f4edd570c034ec
+    # :or is a union
+    # :optional is an optional key in a dict with a default value
     req = {'verb': str,
            'url': str,
            'path': str,
