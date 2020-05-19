@@ -19,6 +19,7 @@ from unittest import mock
 from tornado.ioloop import IOLoop
 from tornado.web import RequestHandler, Application
 from tornado.httputil import HTTPServerRequest
+from tornado.simple_httpclient import HTTPTimeoutError
 
 try:
     import schema
@@ -164,6 +165,7 @@ def test(app, poll='/', context=lambda: mock.patch.object(mock, '_fake_', create
 
 with util.exceptions.ignore(ImportError):
     tornado.httpclient.AsyncHTTPClient.configure("tornado.curl_httpclient.CurlAsyncHTTPClient")
+tornado.httpclient.AsyncHTTPClient.configure(None, max_clients=256)
 
 class Blowup(Exception):
     def __init__(self, message, code, reason, body):
@@ -179,12 +181,7 @@ class Blowup(Exception):
 async def _fetch(verb: str, url: str, **kw: dict) -> schemas.resp:
     url, timeout, blowup, kw = _process_fetch_kwargs(url, kw)
     kw['user_agent'] = kw.get('user_agent', "Mozilla/5.0 (compatible; pycurl)")
-    future = tornado.httpclient.AsyncHTTPClient().fetch(url, method=verb, raise_error=False, **kw)
-    if timeout:
-        IOLoop.current().add_timeout(
-            datetime.timedelta(seconds=timeout),
-            lambda: not future.done() and future.set_exception(Timeout())
-        )
+    future = tornado.httpclient.AsyncHTTPClient().fetch(url, method=verb, raise_error=False, connect_timeout=timeout, request_timeout=timeout, **kw)
     resp = await future
     if blowup and resp.code != 200:
         raise Blowup(f'{verb} {url} did not return 200, returned {resp.code}',
@@ -208,9 +205,7 @@ def _process_fetch_kwargs(url, kw):
 def get(url, **kw):
     return _fetch('GET', url, **kw)
 
-# TODO support schema.check for pos/keyword args with default like body
 def post(url, body='', **kw):
     return _fetch('POST', url, body=body, **kw)
 
-class Timeout(Exception):
-    pass
+Timeout = HTTPTimeoutError
