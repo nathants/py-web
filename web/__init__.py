@@ -1,7 +1,9 @@
-import collections
+from typing import Optional, List, Tuple, Union, Dict, Type, Callable, Sequence
+try:
+    from typing import TypedDict
+except ImportError:
+    from typing_extensions import TypedDict
 import contextlib
-import datetime
-import functools
 import itertools
 import logging
 import pool.proc
@@ -10,43 +12,34 @@ import time
 import tornado.httpclient
 import tornado.web
 import urllib
-import util.data
 import util.exceptions
 import util.func
 import util.log
 import util.net
-from unittest import mock
 from tornado.ioloop import IOLoop
 from tornado.web import RequestHandler, Application
-from tornado.httputil import HTTPServerRequest
+from tornado.httputil import HTTPServerRequest, HTTPFile
 from tornado.simple_httpclient import HTTPTimeoutError
 
-try:
-    import schema
-except ImportError:
-    class schema:
-        def check(fn):
-            return fn
+Query = Dict[str, Union[str, Sequence[str]]]
 
-class schemas:
-    # optional dependency to check schemas at runtime: pip install git+https://github.com/nathants/py-schema@c2f9a0e8404f23d640b3037689f4edd570c034ec
-    # :or is a union
-    # :optional is an optional key in a dict with a default value
-    req = {'verb': str,
-           'url': str,
-           'path': str,
-           'query': {str: (':or', str, [str])},
-           'body': (':or', str, bytes),
-           'headers': {str: (':or', str, int)},
-           'args': [str],
-           'files': {str: [{'body': bytes, 'content_type': str, 'filename': str}]},
-           'kwargs': {str: str},
-           'remote': str}
+class Request(TypedDict):
+    verb: str
+    url: str
+    path: str
+    query: Query
+    body: Union[str, bytes]
+    headers: Dict[str, Union[str, int]]
+    args: List[str]
+    files: Dict[str, List[HTTPFile]]
+    kwargs: Dict[str, str]
+    remote: str
 
-    resp = {'code': (':optional', int, 200),
-            'reason': (':optional', (':or', str, None), None),
-            'headers': (':optional', {str: str}, {}),
-            'body': (':optional', (':or', str, bytes), '')}
+class Response(TypedDict):
+    code: Optional[int]
+    reason: Optional[str]
+    headers: Optional[Dict[str, str]]
+    body: Optional[Union[str, bytes]]
 
 def _try_decode(text):
     try:
@@ -67,65 +60,50 @@ def _handler_function_to_tornado_handler_method(fn):
     method.fn = fn
     return method
 
-@schema.check
-def _verbs_dict_to_tornado_handler_class(verbs_or_handler: (':or', {str: callable}, type(RequestHandler))) -> type:
-    if type(verbs_or_handler) is type(RequestHandler):
+def _verbs_dict_to_tornado_handler_class(verbs_or_handler: Union[Dict[str, Callable], Type[RequestHandler]]) -> Type[RequestHandler]:
+    if isinstance(verbs_or_handler, type(RequestHandler)):
         return verbs_or_handler
     else:
         class Handler(RequestHandler):
-            for verb, fn in verbs_or_handler.items():
+            for verb, fn in verbs_or_handler.items(): # type: ignore
                 locals()[verb.lower()] = _handler_function_to_tornado_handler_method(fn)
             del verb, fn
         return Handler
 
-@schema.check
-def _update_handler_from_dict_resp(resp: schemas.resp, handler: RequestHandler) -> None:
+def _update_handler_from_dict_resp(resp: Response, handler: RequestHandler) -> None:
     body = resp.get('body')
     if body:
         handler.write(body)
-    handler.set_status(resp.get('code', 200), resp.get('reason', ''))
-    for header, value in resp.get('headers', {}).items():
+    handler.set_status(resp.get('code') or 200, resp.get('reason') or '')
+    for header, value in (resp.get('headers') or {}).items():
         handler.set_header(header, value)
 
-@schema.check
-def _parse_query_string(query: str) -> schemas.req['query']:
+def _parse_query_string(query: str) -> Query:
     parsed = urllib.parse.parse_qs(query, True)
-    val = {k: v if len(v) > 1 else v.pop()
-           for k, v in parsed.items()}
-    return val
+    return {k: v if len(v) > 1 else v.pop() for k, v in parsed.items()}
 
-def _tree():
-    return collections.defaultdict(_tree)
-
-@schema.check
-def _tornado_req_to_dict(obj: HTTPServerRequest, a: [str], kw: {str: str}) -> schemas.req:
-    body = _try_decode(obj.body)
-    return collections.defaultdict(_tree, {
-        'verb': obj.method.lower(),
-        'url': obj.uri,
+def _tornado_req_to_dict(obj: HTTPServerRequest, a: List[str], kw: Dict[str, str]) -> Request:
+    return {
+        'verb': (obj.method or '').lower(),
+        'url': obj.uri or '',
         'path': obj.path,
         'query': _parse_query_string(obj.query),
-        'body': body,
+        'body': _try_decode(obj.body),
         'headers': {k.lower(): v for k, v in dict(obj.headers).items()},
         'args': a,
         'kwargs': kw,
         'files': obj.files,
         'remote': obj.remote_ip,
-    })
+    }
 
-@schema.check
 def _parse_route_str(route: str) -> str:
-    return '/'.join([f'(?P<{x[1:]}>.*)'
-                     if x.startswith(':')
-                     else x
-                     for x in route.split('/')])
+    return '/'.join([f'(?P<{x[1:]}>.*)' if x.startswith(':') else x for x in route.split('/')])
 
-@schema.check
-def app(routes: [(str, (':or', type(RequestHandler), {str: callable}))], debug: bool = False, **settings) -> Application:
+def app(routes: List[Tuple[str, Union[Type[RequestHandler], Dict[str, Callable]]]], debug: bool = False, **settings) -> Application:
     routes = [(_parse_route_str(route),
                _verbs_dict_to_tornado_handler_class(verbs))
               for route, verbs in routes]
-    return Application(routes, debug=debug, **settings)
+    return Application(routes, debug=debug, **settings) # type: ignore
 
 def wait_for_http(url, max_wait_seconds=5):
     import requests
@@ -140,7 +118,9 @@ def wait_for_http(url, max_wait_seconds=5):
             time.sleep(.01 * 1)
 
 @contextlib.contextmanager
-def test(app, poll='/', context=lambda: mock.patch.object(mock, '_fake_', create=True), use_thread=False):
+def test(app, poll='/', context=None, use_thread=False):
+    from unittest import mock
+    context = context or (lambda: mock.patch.object(mock, '_fake_', create=True))
     port = util.net.free_port()
     url = f'http://0.0.0.0:{port}'
     def run():
@@ -177,10 +157,9 @@ class Blowup(Exception):
     def __str__(self):
         return f'{self.args[0] if self.args else ""}, code={self.code}, reason="{self.reason}"\n{self.body}'
 
-@schema.check
-async def _fetch(verb: str, url: str, **kw: dict) -> schemas.resp:
+async def _fetch(verb: str, url: str, **kw: dict) -> Response:
     url, timeout, blowup, kw = _process_fetch_kwargs(url, kw)
-    kw['user_agent'] = kw.get('user_agent', "Mozilla/5.0 (compatible; pycurl)")
+    kw['user_agent'] = kw.get('user_agent') or "Mozilla/5.0 (compatible; pycurl)" # type: ignore
     future = tornado.httpclient.AsyncHTTPClient().fetch(url, method=verb, raise_error=False, connect_timeout=timeout, request_timeout=timeout, **kw)
     resp = await future
     if blowup and resp.code != 200:

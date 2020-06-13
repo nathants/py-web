@@ -1,6 +1,6 @@
 ## why
 
-http servers should be easier and simpler.
+almost always, http servers should be simple and easy.
 
 ## what
 
@@ -13,14 +13,6 @@ cd py-web
 pip install -r requirements.txt .
 ```
 
-### for better performance, disable schemas
-
-```
-SCHEMA_DISABLE=y python server.py
-```
-
-note: if you define any additional schemas, you must not rely on optional value behavior if you disable schemas, instead use `dict.get()`
-
 ## http example
 
 ```python
@@ -32,7 +24,7 @@ import web
 logging.basicConfig(level='INFO')
 
 async def handler(request):
-    size = request['query'].get('size', 0)
+    size = int(request['query'].get('size', 0))
     token = request['kwargs']['token']
     return {'code': 200, 'body': f'{token} size: {size}'}
 
@@ -70,7 +62,7 @@ check_call = lambda *a: subprocess.check_call(' '.join(map(str, a)), shell=True,
 logging.basicConfig(level='INFO')
 
 async def handler(request):
-    size = request['query'].get('size', 0)
+    size = int(request['query'].get('size', 0))
     token = request['kwargs']['token']
     return {'code': 200, 'body': f'{token} size: {size}'}
 

@@ -1,2 +1,2 @@
-git+https://github.com/nathants/py-util@a73cbadab5e4803971c8572e14547230bae13bab
-git+https://github.com/nathants/py-pool@bac4eef1d11dd8447ca79fa91ece395134ed6774
+git+https://github.com/nathants/py-util@864b1ca42122c6629063c60905270b4e8a8591fe
+git+https://github.com/nathants/py-pool@2eba7f7a7f32ed22a8ab82d85e8eacb600f685fa
