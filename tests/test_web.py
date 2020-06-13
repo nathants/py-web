@@ -19,7 +19,7 @@ def test_non_2XX_codes():
         assert resp.status_code == 500
 
 def test_normal_app():
-    async def handler(req):
+    async def handler(req: web.Request) -> web.Response:
         return {'body': 'asdf'}
     port = util.net.free_port()
     web.app([('/', {'get': handler})]).listen(port)

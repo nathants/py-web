@@ -23,12 +23,12 @@ import web
 
 logging.basicConfig(level='INFO')
 
-async def handler(request):
+async def handler(request: web.Request) -> web.Response:
     size = int(request['query'].get('size', 0))
     token = request['kwargs']['token']
     return {'code': 200, 'body': f'{token} size: {size}'}
 
-async def fallback_handler(request):
+async def fallback_handler(request: web.Request) -> web.Response:
     route = request['args'][0]
     return {'code': 200, 'body': f'no such route: /{route}, try: /hello/xyz?size=123'}
 
@@ -61,12 +61,12 @@ check_call = lambda *a: subprocess.check_call(' '.join(map(str, a)), shell=True,
 
 logging.basicConfig(level='INFO')
 
-async def handler(request):
+async def handler(request: web.Request) -> web.Response:
     size = int(request['query'].get('size', 0))
     token = request['kwargs']['token']
     return {'code': 200, 'body': f'{token} size: {size}'}
 
-async def fallback_handler(request):
+async def fallback_handler(request: web.Request) -> web.Response:
     route = request['args'][0]
     return {'code': 200, 'body': f'no such route: /{route}, try: /hello/XYZ'}
 
