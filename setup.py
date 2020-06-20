@@ -19,6 +19,7 @@ setuptools.setup(
     author_email='me@nathants.com',
     url='http://github.com/nathants/py-web',
     packages=['web'],
+    package_data = {'web': ['py.typed']},
     install_requires=requires,
     description='a minimal, data centric web library'
 )

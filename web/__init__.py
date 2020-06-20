@@ -35,11 +35,11 @@ class Request(TypedDict):
     kwargs: Dict[str, str]
     remote: str
 
-class Response(TypedDict):
-    code: Optional[int]
-    reason: Optional[str]
-    headers: Optional[Dict[str, str]]
-    body: Optional[Union[str, bytes]]
+class Response(TypedDict, total=False):
+    code: int
+    reason: str
+    headers: Dict[str, str]
+    body: Union[str, bytes]
 
 def _try_decode(text):
     try:
