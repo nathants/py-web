@@ -1,4 +1,4 @@
-from typing import Optional, List, Tuple, Union, Dict, Type, Callable, Sequence
+from typing import List, Tuple, Union, Dict, Type, Callable
 try:
     from typing import TypedDict
 except ImportError:
@@ -21,13 +21,11 @@ from tornado.web import RequestHandler, Application
 from tornado.httputil import HTTPServerRequest, HTTPFile
 from tornado.simple_httpclient import HTTPTimeoutError
 
-Query = Dict[str, Union[str, Sequence[str]]]
-
 class Request(TypedDict):
     verb: str
     url: str
     path: str
-    query: Query
+    query: Dict[str, List[str]]
     body: Union[str, bytes]
     headers: Dict[str, Union[str, int]]
     args: List[str]
@@ -78,9 +76,8 @@ def _update_handler_from_dict_resp(resp: Response, handler: RequestHandler) -> N
     for header, value in (resp.get('headers') or {}).items():
         handler.set_header(header, value)
 
-def _parse_query_string(query: str) -> Query:
-    parsed = urllib.parse.parse_qs(query, True)
-    return {k: v if len(v) > 1 else v.pop() for k, v in parsed.items()}
+def _parse_query_string(query: str) -> Dict[str, List[str]]:
+    return {k: list(v) for k, v in urllib.parse.parse_qs(query, True).items()}
 
 def _tornado_req_to_dict(obj: HTTPServerRequest, a: List[str], kw: Dict[str, str]) -> Request:
     return {
@@ -168,7 +165,7 @@ async def _fetch(verb: str, url: str, **kw: dict) -> Response:
                      resp.reason,
                      resp.body)
     return {'code': resp.code,
-            'reason': resp.reason,
+            'reason': resp.reason or '',
             'headers': {k.lower(): v for k, v in resp.headers.items()},
             'body': _try_decode(resp.body or b'')}
 

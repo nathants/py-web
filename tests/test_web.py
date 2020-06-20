@@ -62,7 +62,7 @@ def test_get_params():
         return {'body': json.dumps(req['query'])}
     async def main(url):
         resp = await web.get(url, query={'foo': 'bar'})
-        assert json.loads(resp['body']) == {'foo': 'bar'}
+        assert json.loads(resp['body']) == {'foo': ['bar']}
     app = web.app([('/', {'get': handler})])
     with web.test(app) as url:
         tornado.ioloop.IOLoop.instance().run_sync(lambda: main(url))
@@ -181,9 +181,9 @@ def test_url_params():
     app = web.app([('/', {'get': handler})])
     with web.test(app) as url:
         resp = requests.get(url + '/?asdf=123&foo=bar&foo=notbar&stuff')
-        assert json.loads(resp.text) == {'asdf': '123',
+        assert json.loads(resp.text) == {'asdf': ['123'],
                                          'foo': ['bar', 'notbar'],
-                                         'stuff': ''}
+                                         'stuff': ['']}
 
 def test_url_kwargs():
     async def handler(req):
