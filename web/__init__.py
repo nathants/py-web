@@ -1,4 +1,4 @@
-from typing import List, Tuple, Union, Dict, Type, Callable
+from typing import List, Tuple, Union, Dict, Type, Callable, Any
 try:
     from typing import TypedDict
 except ImportError:
@@ -96,7 +96,7 @@ def _tornado_req_to_dict(obj: HTTPServerRequest, a: List[str], kw: Dict[str, str
 def _parse_route_str(route: str) -> str:
     return '/'.join([f'(?P<{x[1:]}>.*)' if x.startswith(':') else x for x in route.split('/')])
 
-def app(routes: List[Tuple[str, Union[Type[RequestHandler], Dict[str, Callable]]]], debug: bool = False, **settings) -> Application:
+def app(routes: List[Tuple[str, Any]], debug: bool = False, **settings) -> Application:
     routes = [(_parse_route_str(route),
                _verbs_dict_to_tornado_handler_class(verbs))
               for route, verbs in routes]
