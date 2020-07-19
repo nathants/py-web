@@ -6,8 +6,9 @@ almost always, http servers should be simple and easy.
 
 an http library wrapping [tornado](http://www.tornadoweb.org/en/latest/).
 
-### install
-```
+## install
+
+```bash
 git clone https://github.com/nathants/py-web
 cd py-web
 pip install -r requirements.txt .
