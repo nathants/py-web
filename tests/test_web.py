@@ -20,7 +20,7 @@ def test_non_2XX_codes():
 
 def test_normal_app():
     async def handler(req: web.Request) -> web.Response:
-        return {'body': 'asdf'}
+        return {'body': b'asdf'}
     port = util.net.free_port()
     web.app([('/', {'get': handler})]).listen(port)
     proc = pool.proc.new(tornado.ioloop.IOLoop.current().start)
@@ -45,12 +45,12 @@ def test_get_timeout():
 
 def test_get():
     async def handler(req):
-        return {'body': 'ok',
+        return {'body': b'ok',
                 'code': 200,
                 'headers': {'foo': 'bar'}}
     async def main(url):
         resp = await web.get(url)
-        assert resp['body'] == 'ok'
+        assert resp['body'] == b'ok'
         assert resp['code'] == 200
         assert resp['headers']['foo'] == 'bar'
     app = web.app([('/', {'get': handler})])
@@ -108,10 +108,10 @@ def test_post_files():
 def test_tornado_handler_passthrough():
     class Handler(RequestHandler):
         async def post(self):
-            self.write('hi')
+            self.write(b'hi')
     async def main(url):
         resp = await web.post(url, '')
-        assert resp['body'] == 'hi'
+        assert resp['body'] == b'hi'
     app = web.app([('/', Handler)])
     with web.test(app) as url:
         tornado.ioloop.IOLoop.instance().run_sync(lambda: main(url))
@@ -126,8 +126,8 @@ def test_tornado_handler_passthrough_streaming():
         def post(self):
             self.write(f'{self.bytes_read}')
     async def main(url):
-        resp = await web.post(url, 'asdf')
-        assert resp['body'] == '4'
+        resp = await web.post(url, b'asdf')
+        assert resp['body'] == b'4'
     app = web.app([('/', Handler)])
     with web.test(app) as url:
         tornado.ioloop.IOLoop.instance().run_sync(lambda: main(url))

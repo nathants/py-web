@@ -26,7 +26,7 @@ class Request(TypedDict):
     url: str
     path: str
     query: Dict[str, List[str]]
-    body: Union[str, bytes]
+    body: bytes
     headers: Dict[str, Union[str, int]]
     args: List[str]
     files: Dict[str, List[HTTPFile]]
@@ -37,13 +37,7 @@ class Response(TypedDict, total=False):
     code: int
     reason: str
     headers: Dict[str, str]
-    body: Union[str, bytes]
-
-def _try_decode(text):
-    try:
-        return text.decode('utf-8')
-    except:
-        return text
+    body: bytes
 
 def _handler_function_to_tornado_handler_method(fn):
     name = util.func.name(fn)
@@ -85,7 +79,7 @@ def _tornado_req_to_dict(obj: HTTPServerRequest, a: List[str], kw: Dict[str, str
         'url': obj.uri or '',
         'path': obj.path,
         'query': _parse_query_string(obj.query),
-        'body': _try_decode(obj.body),
+        'body': obj.body,
         'headers': {k.lower(): v for k, v in dict(obj.headers).items()},
         'args': a,
         'kwargs': kw,
@@ -149,7 +143,7 @@ class Blowup(Exception):
         super().__init__(message)
         self.code = code
         self.reason = reason
-        self.body = _try_decode(body)
+        self.body = body
 
     def __str__(self):
         return f'{self.args[0] if self.args else ""}, code={self.code}, reason="{self.reason}"\n{self.body}'
@@ -167,7 +161,7 @@ async def _fetch(verb: str, url: str, **kw: dict) -> Response:
     return {'code': resp.code,
             'reason': resp.reason or '',
             'headers': {k.lower(): v for k, v in resp.headers.items()},
-            'body': _try_decode(resp.body or b'')}
+            'body': resp.body or b''}
 
 def _process_fetch_kwargs(url, kw):
     timeout = kw.pop('timeout', 10)
