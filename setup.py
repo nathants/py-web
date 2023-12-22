@@ -1,12 +1,12 @@
 import setuptools
 import sys
 
-requires = ['tornado >6, <7']
+requires = ['tornado']
 
 try:
     _ = sys.pypy_version_info
-    requires += ['typing >3, <4',
-                 'typing-extensions >3, <4']
+    requires += ['typing',
+                 'typing-extensions']
 except AttributeError:
     pass
 
